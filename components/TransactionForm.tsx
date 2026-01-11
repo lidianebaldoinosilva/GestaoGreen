@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Partner, Material, Batch, BatchStatus } from '../types';
+import { Partner, Material, Batch, BatchStatus } from '../types.ts';
 import { ShoppingCart, RefreshCw, Save } from 'lucide-react';
 
 interface Props {
@@ -16,7 +16,7 @@ const TransactionForm: React.FC<Props> = ({ partners, materials, batches, onPurc
   
   // Purchase form state
   const [pPartner, setPPartner] = useState('');
-  const [pMaterial, setPMaterial] = useState('10');
+  const [pMaterial, setPMaterial] = useState('010');
   const [pWeight, setPWeight] = useState('');
 
   // Update form state

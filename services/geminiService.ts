@@ -1,9 +1,8 @@
 
 import { GoogleGenAI } from "@google/genai";
-import { Batch, Partner, Material } from "../types";
+import { Batch, Partner, Material } from "../types.ts";
 
 export const getInventoryInsights = async (batches: Batch[], partners: Partner[], materials: Material[]) => {
-  // Use process.env.API_KEY directly for initialization as per guidelines.
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   const stockSummary = batches.map(b => {
@@ -29,7 +28,6 @@ export const getInventoryInsights = async (batches: Batch[], partners: Partner[]
       model: "gemini-3-flash-preview",
       contents: prompt,
     });
-    // Correctly using .text property (not a method) as per guidelines.
     return response.text;
   } catch (error) {
     console.error("Erro ao consultar Gemini:", error);

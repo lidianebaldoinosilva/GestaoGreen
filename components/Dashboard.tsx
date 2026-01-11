@@ -1,8 +1,8 @@
 
 import React, { useState, useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart, Pie } from 'recharts';
-import { Batch, Partner, Material } from '../types';
-import { getInventoryInsights } from '../services/geminiService';
+import { Batch, Partner, Material } from '../types.ts';
+import { getInventoryInsights } from '../services/geminiService.ts';
 import { Brain, TrendingUp, Package, Truck, Recycle } from 'lucide-react';
 
 interface Props {
@@ -18,6 +18,7 @@ const Dashboard: React.FC<Props> = ({ batches, partners, materials }) => {
   const stats = useMemo(() => {
     const rawWeight = batches.filter(b => b.status === 'raw').reduce((acc, curr) => acc + curr.weightKg, 0);
     const finishedWeight = batches.filter(b => b.status === 'finished').reduce((acc, curr) => acc + curr.weightKg, 0);
+    const finishedWeightCount = batches.filter(b => b.status === 'finished').length;
     const processingWeight = batches.filter(b => b.status === 'processing').reduce((acc, curr) => acc + curr.weightKg, 0);
     
     return { rawWeight, finishedWeight, processingWeight };

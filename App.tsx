@@ -1,12 +1,12 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Partner, Material, Batch, Transaction, BatchStatus } from './types';
-import { INITIAL_PARTNERS, MATERIALS, INITIAL_BATCHES } from './constants';
-import Dashboard from './components/Dashboard';
-import InventoryTable from './components/InventoryTable';
-import PartnerManager from './components/PartnerManager';
-import MaterialManager from './components/MaterialManager';
-import TransactionForm from './components/TransactionForm';
+import { Partner, Material, Batch, Transaction, BatchStatus } from './types.ts';
+import { INITIAL_PARTNERS, MATERIALS, INITIAL_BATCHES } from './constants.tsx';
+import Dashboard from './components/Dashboard.tsx';
+import InventoryTable from './components/InventoryTable.tsx';
+import PartnerManager from './components/PartnerManager.tsx';
+import MaterialManager from './components/MaterialManager.tsx';
+import TransactionForm from './components/TransactionForm.tsx';
 import { LayoutDashboard, Boxes, Users, ArrowLeftRight, Settings, Sprout, Tags } from 'lucide-react';
 
 const App: React.FC = () => {

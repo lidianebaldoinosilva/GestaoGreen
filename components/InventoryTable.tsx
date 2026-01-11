@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Batch, Partner, Material, BatchStatus } from '../types';
+import { Batch, Partner, Material, BatchStatus } from '../types.ts';
 import { MoreHorizontal, Search, CheckCircle2, Factory, Trash2, ArrowRight } from 'lucide-react';
 
 interface Props {
