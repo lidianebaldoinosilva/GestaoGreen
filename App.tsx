@@ -9,6 +9,7 @@ import MaterialManager from './components/MaterialManager.tsx';
 import TransactionForm from './components/TransactionForm.tsx';
 import HistoryReport from './components/HistoryReport.tsx';
 import FinancialLedger from './components/FinancialLedger.tsx';
+import * as XLSX from 'xlsx';
 import { 
   LayoutDashboard, 
   Boxes, 
@@ -47,22 +48,35 @@ const App: React.FC = () => {
   }, []);
 
   const saveData = () => {
-    const data = {
-      partners,
-      materials,
-      batches,
-      transactions,
-      financials,
-      version: '1.4.2',
-      exportDate: new Date().toISOString()
-    };
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `green_backup_${new Date().toISOString().split('T')[0]}.json`;
-    link.click();
-    URL.revokeObjectURL(url);
+    // Preparar as planilhas
+    const wb = XLSX.utils.book_new();
+
+    // Aba Estoque
+    const wsEstoque = XLSX.utils.json_to_sheet(batches);
+    XLSX.utils.book_append_sheet(wb, wsEstoque, "Estoque");
+
+    // Aba Movimentações (Cópia de transações para o fluxo solicitado)
+    const wsMovimentacoes = XLSX.utils.json_to_sheet(transactions);
+    XLSX.utils.book_append_sheet(wb, wsMovimentacoes, "Movimentações");
+
+    // Aba Histórico (Dados das transações)
+    const wsHistorico = XLSX.utils.json_to_sheet(transactions);
+    XLSX.utils.book_append_sheet(wb, wsHistorico, "Historico");
+
+    // Aba Financeiro
+    const wsFinanceiro = XLSX.utils.json_to_sheet(financials);
+    XLSX.utils.book_append_sheet(wb, wsFinanceiro, "financeiro");
+
+    // Aba Parceiros
+    const wsParceiros = XLSX.utils.json_to_sheet(partners);
+    XLSX.utils.book_append_sheet(wb, wsParceiros, "parceiros");
+
+    // Aba Materiais
+    const wsMateriais = XLSX.utils.json_to_sheet(materials);
+    XLSX.utils.book_append_sheet(wb, wsMateriais, "materiais");
+
+    // Gerar o arquivo Excel
+    XLSX.writeFile(wb, "bancodadosgreen.xlsx");
   };
 
   const handleLoadFile = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -72,27 +86,35 @@ const App: React.FC = () => {
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
-        const json = JSON.parse(e.target?.result as string);
-        
-        // Validação básica
-        if (!json.partners || !json.batches) {
-          throw new Error("Arquivo inválido");
-        }
+        const data = e.target?.result;
+        const workbook = XLSX.read(data, { type: 'binary' });
 
         if (confirm("Isso substituirá todos os dados atuais. Deseja continuar?")) {
-          setPartners(json.partners);
-          setMaterials(json.materials || MATERIALS);
-          setBatches(json.batches);
-          setTransactions(json.transactions || []);
-          setFinancials(json.financials || []);
-          alert('Dados carregados com sucesso!');
+          // Extrair dados de cada aba
+          if (workbook.Sheets["parceiros"]) {
+            setPartners(XLSX.utils.sheet_to_json(workbook.Sheets["parceiros"]) as Partner[]);
+          }
+          if (workbook.Sheets["materiais"]) {
+            setMaterials(XLSX.utils.sheet_to_json(workbook.Sheets["materiais"]) as Material[]);
+          }
+          if (workbook.Sheets["Estoque"]) {
+            setBatches(XLSX.utils.sheet_to_json(workbook.Sheets["Estoque"]) as Batch[]);
+          }
+          if (workbook.Sheets["Historico"]) {
+            setTransactions(XLSX.utils.sheet_to_json(workbook.Sheets["Historico"]) as Transaction[]);
+          }
+          if (workbook.Sheets["financeiro"]) {
+            setFinancials(XLSX.utils.sheet_to_json(workbook.Sheets["financeiro"]) as FinancialEntry[]);
+          }
+          
+          alert('Dados carregados com sucesso a partir da planilha Excel!');
         }
       } catch (err) {
-        alert('Erro ao carregar arquivo. Certifique-se que é um backup válido da Green Reciclagem.');
+        console.error(err);
+        alert('Erro ao carregar o arquivo Excel. Certifique-se que as abas estão corretas.');
       }
     };
-    reader.readAsText(file);
-    // Limpar o input para permitir carregar o mesmo arquivo novamente se necessário
+    reader.readAsBinaryString(file);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -285,31 +307,33 @@ const App: React.FC = () => {
           ))}
         </nav>
 
-        {/* Botões de Salvar/Carregar */}
+        {/* Botões de Salvar/Carregar Excel */}
         <div className="p-4 border-t border-emerald-800 space-y-2">
           <button 
             onClick={saveData}
+            title="Salvar arquivo Excel bancodadosgreen.xlsx"
             className="w-full flex items-center gap-2 px-4 py-2 text-sm font-semibold bg-emerald-800 hover:bg-emerald-700 rounded-lg transition-colors border border-emerald-700"
           >
-            <Download className="w-4 h-4" /> Salvar Dados
+            <Download className="w-4 h-4" /> Salvar Excel
           </button>
           <button 
             onClick={() => fileInputRef.current?.click()}
+            title="Carregar arquivo Excel para atualizar o app"
             className="w-full flex items-center gap-2 px-4 py-2 text-sm font-semibold bg-emerald-800 hover:bg-emerald-700 rounded-lg transition-colors border border-emerald-700"
           >
-            <Upload className="w-4 h-4" /> Carregar Dados
+            <Upload className="w-4 h-4" /> Carregar Excel
           </button>
           <input 
             type="file" 
             ref={fileInputRef} 
             onChange={handleLoadFile} 
-            accept=".json" 
+            accept=".xlsx, .xls" 
             className="hidden" 
           />
         </div>
 
         <div className="p-4 border-t border-emerald-800 opacity-60">
-          <p className="text-[10px] text-center uppercase tracking-widest font-bold">v1.4.2 &copy; 2024 Green S.A.</p>
+          <p className="text-[10px] text-center uppercase tracking-widest font-bold">v1.4.3 &copy; 2024 Green S.A.</p>
         </div>
       </aside>
 
