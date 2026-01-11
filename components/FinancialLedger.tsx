@@ -16,8 +16,13 @@ const FinancialLedger: React.FC<Props> = ({ entries, partners, onStatusChange })
   
   const totals = useMemo(() => {
     return {
-      payable: entries.filter(e => e.type === 'payable').reduce((acc, curr) => acc + curr.amount, 0),
-      receivable: entries.filter(e => e.type === 'receivable').reduce((acc, curr) => acc + curr.amount, 0)
+      // Filtrar apenas títulos pendentes para o cálculo do total no topo
+      payable: entries
+        .filter(e => e.type === 'payable' && e.status === 'pending')
+        .reduce((acc, curr) => acc + curr.amount, 0),
+      receivable: entries
+        .filter(e => e.type === 'receivable' && e.status === 'pending')
+        .reduce((acc, curr) => acc + curr.amount, 0)
     };
   }, [entries]);
 
@@ -28,7 +33,7 @@ const FinancialLedger: React.FC<Props> = ({ entries, partners, onStatusChange })
           <div className="flex items-center gap-4 mb-2">
             <div className="bg-red-100 p-3 rounded-full text-red-600"><ArrowUpCircle className="w-6 h-6" /></div>
             <div>
-              <p className="text-sm font-bold text-slate-400 uppercase">Total Contas a Pagar</p>
+              <p className="text-sm font-bold text-slate-400 uppercase">Total Contas a Pagar (Em Aberto)</p>
               <h3 className="text-2xl font-black text-slate-800">R$ {totals.payable.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
             </div>
           </div>
@@ -37,7 +42,7 @@ const FinancialLedger: React.FC<Props> = ({ entries, partners, onStatusChange })
           <div className="flex items-center gap-4 mb-2">
             <div className="bg-emerald-100 p-3 rounded-full text-emerald-600"><ArrowDownCircle className="w-6 h-6" /></div>
             <div>
-              <p className="text-sm font-bold text-slate-400 uppercase">Total Contas a Receber</p>
+              <p className="text-sm font-bold text-slate-400 uppercase">Total Contas a Receber (Em Aberto)</p>
               <h3 className="text-2xl font-black text-slate-800">R$ {totals.receivable.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
             </div>
           </div>

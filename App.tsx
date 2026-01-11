@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Partner, Material, Batch, Transaction, BatchStatus, FinancialEntry } from './types.ts';
 import { INITIAL_PARTNERS, MATERIALS, INITIAL_BATCHES } from './constants.tsx';
 import Dashboard from './components/Dashboard.tsx';
@@ -9,7 +9,18 @@ import MaterialManager from './components/MaterialManager.tsx';
 import TransactionForm from './components/TransactionForm.tsx';
 import HistoryReport from './components/HistoryReport.tsx';
 import FinancialLedger from './components/FinancialLedger.tsx';
-import { LayoutDashboard, Boxes, Users, ArrowLeftRight, Sprout, Tags, History, WalletCards } from 'lucide-react';
+import { 
+  LayoutDashboard, 
+  Boxes, 
+  Users, 
+  ArrowLeftRight, 
+  Sprout, 
+  Tags, 
+  History, 
+  WalletCards,
+  Download,
+  Upload
+} from 'lucide-react';
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'inventory' | 'partners' | 'materials' | 'transactions' | 'history' | 'financial'>('dashboard');
@@ -18,6 +29,8 @@ const App: React.FC = () => {
   const [batches, setBatches] = useState<Batch[]>(INITIAL_BATCHES);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [financials, setFinancials] = useState<FinancialEntry[]>([]);
+  
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (transactions.length === 0 && batches.length > 0) {
@@ -32,6 +45,56 @@ const App: React.FC = () => {
       setTransactions(initialTxs);
     }
   }, []);
+
+  const saveData = () => {
+    const data = {
+      partners,
+      materials,
+      batches,
+      transactions,
+      financials,
+      version: '1.4.2',
+      exportDate: new Date().toISOString()
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `green_backup_${new Date().toISOString().split('T')[0]}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleLoadFile = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const json = JSON.parse(e.target?.result as string);
+        
+        // Validação básica
+        if (!json.partners || !json.batches) {
+          throw new Error("Arquivo inválido");
+        }
+
+        if (confirm("Isso substituirá todos os dados atuais. Deseja continuar?")) {
+          setPartners(json.partners);
+          setMaterials(json.materials || MATERIALS);
+          setBatches(json.batches);
+          setTransactions(json.transactions || []);
+          setFinancials(json.financials || []);
+          alert('Dados carregados com sucesso!');
+        }
+      } catch (err) {
+        alert('Erro ao carregar arquivo. Certifique-se que é um backup válido da Green Reciclagem.');
+      }
+    };
+    reader.readAsText(file);
+    // Limpar o input para permitir carregar o mesmo arquivo novamente se necessário
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
 
   const addPurchase = (partnerId: string, materialCode: string, weight: number, pricePerKg?: number) => {
     const partner = partners.find(p => p.id === partnerId);
@@ -80,20 +143,31 @@ const App: React.FC = () => {
     setTransactions(prev => [...prev, newTx]);
   };
 
-  const updateBatchStatus = (batchId: string, newStatus: BatchStatus, config?: { weight?: number, partnerId?: string, pricePerKg?: number }) => {
+  const updateBatchStatus = (batchId: string, newStatus: BatchStatus, config?: { weight?: number, partnerId?: string, pricePerKg?: number, materialCode?: string }) => {
     const batch = batches.find(b => b.id === batchId);
     if (!batch) return;
 
     const originalWeight = batch.weightKg;
     const now = new Date().toISOString();
     const finalWeight = config?.weight !== undefined ? config.weight : batch.weightKg;
+    const finalMaterialCode = config?.materialCode || batch.materialCode;
     
+    let finalBatchId = batchId;
+    if (config?.materialCode && config.materialCode !== batch.materialCode) {
+      const parts = batchId.split('/');
+      if (parts.length === 3) {
+        finalBatchId = `${parts[0]}/${parts[1]}/${config.materialCode}`;
+      }
+    }
+
     setBatches(prev => prev.map(b => {
       if (b.id === batchId) {
         return { 
           ...b, 
+          id: finalBatchId,
           status: newStatus, 
           weightKg: finalWeight,
+          materialCode: finalMaterialCode,
           serviceProviderId: config?.partnerId && newStatus === 'extruding' ? config.partnerId : b.serviceProviderId,
           customerId: config?.partnerId && newStatus === 'sold' ? config.partnerId : b.customerId,
           salePricePerKg: config?.pricePerKg || b.salePricePerKg,
@@ -116,20 +190,22 @@ const App: React.FC = () => {
 
     if ((newStatus === 'finished' || newStatus === 'extruded') && config?.weight !== undefined) {
       const loss = originalWeight - finalWeight;
+      const matName = materials.find(m => m.code === finalMaterialCode)?.name || 'Material';
+      
       newTxs.push({
         id: Math.random().toString(36).substr(2, 9),
-        batchId,
+        batchId: finalBatchId,
         type: typeMapping[newStatus],
         weight: finalWeight,
         originalWeight: originalWeight,
         date: now,
-        description: `${newStatus === 'finished' ? 'Finalização processo' : 'Retorno extrusão'}. Peso final: ${finalWeight}kg`
+        description: `${newStatus === 'finished' ? 'Finalização processo' : 'Retorno extrusão'} como ${matName}. Peso final: ${finalWeight}kg`
       });
 
       if (loss > 0) {
         newTxs.push({
           id: Math.random().toString(36).substr(2, 9),
-          batchId,
+          batchId: finalBatchId,
           type: 'loss',
           weight: loss,
           date: now,
@@ -140,7 +216,7 @@ const App: React.FC = () => {
       const partner = partners.find(p => p.id === config.partnerId);
       newTxs.push({
         id: Math.random().toString(36).substr(2, 9),
-        batchId,
+        batchId: finalBatchId,
         type: 'sale',
         weight: batch.weightKg,
         date: now,
@@ -151,17 +227,17 @@ const App: React.FC = () => {
         id: Math.random().toString(36).substr(2, 9),
         type: 'receivable',
         partnerId: config.partnerId || '',
-        batchId,
+        batchId: finalBatchId,
         amount: batch.weightKg * config.pricePerKg,
         date: now,
         status: 'pending',
-        description: `Venda Lote ${batchId} - ${partner?.name}`
+        description: `Venda Lote ${finalBatchId} - ${partner?.name}`
       };
       setFinancials(prev => [...prev, finEntry]);
     } else {
       newTxs.push({
         id: Math.random().toString(36).substr(2, 9),
-        batchId,
+        batchId: finalBatchId,
         type: typeMapping[newStatus],
         weight: finalWeight,
         date: now,
@@ -209,8 +285,31 @@ const App: React.FC = () => {
           ))}
         </nav>
 
-        <div className="p-6 border-t border-emerald-800 opacity-60">
-          <p className="text-xs">v1.4.0 &copy; 2024 Green S.A.</p>
+        {/* Botões de Salvar/Carregar */}
+        <div className="p-4 border-t border-emerald-800 space-y-2">
+          <button 
+            onClick={saveData}
+            className="w-full flex items-center gap-2 px-4 py-2 text-sm font-semibold bg-emerald-800 hover:bg-emerald-700 rounded-lg transition-colors border border-emerald-700"
+          >
+            <Download className="w-4 h-4" /> Salvar Dados
+          </button>
+          <button 
+            onClick={() => fileInputRef.current?.click()}
+            className="w-full flex items-center gap-2 px-4 py-2 text-sm font-semibold bg-emerald-800 hover:bg-emerald-700 rounded-lg transition-colors border border-emerald-700"
+          >
+            <Upload className="w-4 h-4" /> Carregar Dados
+          </button>
+          <input 
+            type="file" 
+            ref={fileInputRef} 
+            onChange={handleLoadFile} 
+            accept=".json" 
+            className="hidden" 
+          />
+        </div>
+
+        <div className="p-4 border-t border-emerald-800 opacity-60">
+          <p className="text-[10px] text-center uppercase tracking-widest font-bold">v1.4.2 &copy; 2024 Green S.A.</p>
         </div>
       </aside>
 

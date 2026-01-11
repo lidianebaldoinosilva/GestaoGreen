@@ -7,7 +7,7 @@ interface Props {
   batches: Batch[];
   partners: Partner[];
   materials: Material[];
-  onUpdateStatus: (id: string, status: BatchStatus, config?: { weight?: number, partnerId?: string, pricePerKg?: number }) => void;
+  onUpdateStatus: (id: string, status: BatchStatus, config?: { weight?: number, partnerId?: string, pricePerKg?: number, materialCode?: string }) => void;
 }
 
 const InventoryTable: React.FC<Props> = ({ batches, partners, materials, onUpdateStatus }) => {
@@ -18,6 +18,7 @@ const InventoryTable: React.FC<Props> = ({ batches, partners, materials, onUpdat
   const [formWeight, setFormWeight] = useState('');
   const [formPartnerId, setFormPartnerId] = useState('');
   const [formPrice, setFormPrice] = useState('');
+  const [formMaterialCode, setFormMaterialCode] = useState('');
 
   const filteredBatches = batches.filter(b => {
     const partner = partners.find(p => p.id === b.partnerId);
@@ -54,16 +55,31 @@ const InventoryTable: React.FC<Props> = ({ batches, partners, materials, onUpdat
     if (!activeBatch) return;
 
     if (modalType === 'finalize') {
-      onUpdateStatus(activeBatch.id, 'finished', { weight: parseFloat(formWeight) });
+      onUpdateStatus(activeBatch.id, 'finished', { 
+        weight: parseFloat(formWeight),
+        materialCode: formMaterialCode
+      });
     } else if (modalType === 'extrude_send') {
       onUpdateStatus(activeBatch.id, 'extruding', { partnerId: formPartnerId });
     } else if (modalType === 'extrude_return') {
-      onUpdateStatus(activeBatch.id, 'extruded', { weight: parseFloat(formWeight) });
+      onUpdateStatus(activeBatch.id, 'extruded', { 
+        weight: parseFloat(formWeight),
+        materialCode: formMaterialCode
+      });
     } else if (modalType === 'sell') {
       onUpdateStatus(activeBatch.id, 'sold', { partnerId: formPartnerId, pricePerKg: parseFloat(formPrice) });
     }
 
     resetModal();
+  };
+
+  const openModal = (type: typeof modalType, batch: Batch) => {
+    setActiveBatch(batch);
+    setModalType(type);
+    setFormWeight(batch.weightKg.toString());
+    setFormMaterialCode(batch.materialCode);
+    setFormPartnerId('');
+    setFormPrice('');
   };
 
   const resetModal = () => {
@@ -72,6 +88,7 @@ const InventoryTable: React.FC<Props> = ({ batches, partners, materials, onUpdat
     setFormWeight('');
     setFormPartnerId('');
     setFormPrice('');
+    setFormMaterialCode('');
   };
 
   const calculateLoss = () => {
@@ -128,18 +145,18 @@ const InventoryTable: React.FC<Props> = ({ batches, partners, materials, onUpdat
                         <button onClick={() => onUpdateStatus(batch.id, 'processing')} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition" title="Moer/Lavar"><Factory className="w-4 h-4" /></button>
                       )}
                       {batch.status === 'processing' && (
-                        <button onClick={() => { setActiveBatch(batch); setModalType('finalize'); setFormWeight(batch.weightKg.toString()); }} className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition" title="Finalizar e Prensagem"><CheckCircle2 className="w-5 h-5" /></button>
+                        <button onClick={() => openModal('finalize', batch)} className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition" title="Finalizar e Prensagem"><CheckCircle2 className="w-5 h-5" /></button>
                       )}
                       {(batch.status === 'finished' || batch.status === 'extruded') && (
                         <>
-                          <button onClick={() => { setActiveBatch(batch); setModalType('sell'); }} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition" title="Registrar Venda"><ShoppingCart className="w-4 h-4" /></button>
+                          <button onClick={() => openModal('sell', batch)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition" title="Registrar Venda"><ShoppingCart className="w-4 h-4" /></button>
                           {batch.status === 'finished' && (
-                            <button onClick={() => { setActiveBatch(batch); setModalType('extrude_send'); }} className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg transition" title="Saída para Extrusão Externa"><Truck className="w-4 h-4" /></button>
+                            <button onClick={() => openModal('extrude_send', batch)} className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg transition" title="Saída para Extrusão Externa"><Truck className="w-4 h-4" /></button>
                           )}
                         </>
                       )}
                       {batch.status === 'extruding' && (
-                        <button onClick={() => { setActiveBatch(batch); setModalType('extrude_return'); setFormWeight(batch.weightKg.toString()); }} className="p-2 text-cyan-600 hover:bg-cyan-50 rounded-lg transition" title="Retorno de Extrusão"><RefreshCw className="w-4 h-4" /></button>
+                        <button onClick={() => openModal('extrude_return', batch)} className="p-2 text-cyan-600 hover:bg-cyan-50 rounded-lg transition" title="Retorno de Extrusão"><RefreshCw className="w-4 h-4" /></button>
                       )}
                     </div>
                   </td>
@@ -199,20 +216,37 @@ const InventoryTable: React.FC<Props> = ({ batches, partners, materials, onUpdat
               )}
 
               {(modalType === 'finalize' || modalType === 'extrude_return') && (
-                <div className="space-y-4">
+                <>
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-slate-600 uppercase">Peso Final Verificado (Kg)</label>
-                    <input required type="number" step="0.01" value={formWeight} onChange={e => setFormWeight(e.target.value)} className="w-full p-4 bg-slate-50 border-2 border-emerald-100 rounded-2xl text-2xl font-bold text-emerald-700 outline-none" placeholder="Ex: 1200" />
+                    <label className="text-sm font-bold text-slate-600 uppercase">Material de Reentrada</label>
+                    <select 
+                      required 
+                      value={formMaterialCode} 
+                      onChange={e => setFormMaterialCode(e.target.value)}
+                      className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-bold text-slate-700"
+                    >
+                      {materials.map(m => (
+                        <option key={m.id} value={m.code}>{m.name} ({m.code})</option>
+                      ))}
+                    </select>
+                    <p className="text-[10px] text-slate-400">Ao alterar o material, o ID do lote será atualizado para refletir a nova classificação.</p>
                   </div>
-                  
-                  <div className={`p-4 rounded-xl border flex items-center justify-between ${calculateLoss() > 0 ? 'bg-amber-50 border-amber-200 text-amber-700' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>
-                    <div className="flex items-center gap-2">
-                      <AlertTriangle className="w-4 h-4" />
-                      <span className="text-xs font-bold uppercase">Perda Calculada:</span>
+
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <label className="text-sm font-bold text-slate-600 uppercase">Peso Final Verificado (Kg)</label>
+                      <input required type="number" step="0.01" value={formWeight} onChange={e => setFormWeight(e.target.value)} className="w-full p-4 bg-slate-50 border-2 border-emerald-100 rounded-2xl text-2xl font-bold text-emerald-700 outline-none" placeholder="Ex: 1200" />
                     </div>
-                    <span className="font-bold">{calculateLoss().toLocaleString()} kg</span>
+                    
+                    <div className={`p-4 rounded-xl border flex items-center justify-between ${calculateLoss() > 0 ? 'bg-amber-50 border-amber-200 text-amber-700' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>
+                      <div className="flex items-center gap-2">
+                        <AlertTriangle className="w-4 h-4" />
+                        <span className="text-xs font-bold uppercase">Perda Calculada:</span>
+                      </div>
+                      <span className="font-bold">{calculateLoss().toLocaleString()} kg</span>
+                    </div>
                   </div>
-                </div>
+                </>
               )}
 
               <button type="submit" className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-200 transition">
