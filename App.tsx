@@ -1,6 +1,6 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
-import { Partner, Material, Batch, Transaction, BatchStatus } from './types.ts';
+import React, { useState, useEffect } from 'react';
+import { Partner, Material, Batch, Transaction, BatchStatus, FinancialEntry } from './types.ts';
 import { INITIAL_PARTNERS, MATERIALS, INITIAL_BATCHES } from './constants.tsx';
 import Dashboard from './components/Dashboard.tsx';
 import InventoryTable from './components/InventoryTable.tsx';
@@ -8,16 +8,17 @@ import PartnerManager from './components/PartnerManager.tsx';
 import MaterialManager from './components/MaterialManager.tsx';
 import TransactionForm from './components/TransactionForm.tsx';
 import HistoryReport from './components/HistoryReport.tsx';
-import { LayoutDashboard, Boxes, Users, ArrowLeftRight, Settings, Sprout, Tags, History } from 'lucide-react';
+import FinancialLedger from './components/FinancialLedger.tsx';
+import { LayoutDashboard, Boxes, Users, ArrowLeftRight, Sprout, Tags, History, WalletCards } from 'lucide-react';
 
 const App: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'inventory' | 'partners' | 'materials' | 'transactions' | 'history'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'inventory' | 'partners' | 'materials' | 'transactions' | 'history' | 'financial'>('dashboard');
   const [partners, setPartners] = useState<Partner[]>(INITIAL_PARTNERS);
   const [materials, setMaterials] = useState<Material[]>(MATERIALS);
   const [batches, setBatches] = useState<Batch[]>(INITIAL_BATCHES);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [financials, setFinancials] = useState<FinancialEntry[]>([]);
 
-  // Carregar transações iniciais baseadas no lote inicial
   useEffect(() => {
     if (transactions.length === 0 && batches.length > 0) {
       const initialTxs: Transaction[] = batches.map(b => ({
@@ -32,28 +33,24 @@ const App: React.FC = () => {
     }
   }, []);
 
-  const generateBatchId = (partnerCode: string, materialCode: string) => {
-    const partner = partners.find(p => p.code === partnerCode);
-    const count = batches.filter(b => b.partnerId === partner?.id).length + 1;
-    const seq = count.toString().padStart(3, '0');
-    return `${partnerCode}/${seq}/${materialCode}`;
-  };
-
-  const addPurchase = (partnerId: string, materialCode: string, weight: number) => {
+  const addPurchase = (partnerId: string, materialCode: string, weight: number, pricePerKg?: number) => {
     const partner = partners.find(p => p.id === partnerId);
     if (!partner) return;
 
-    const newBatchId = generateBatchId(partner.code, materialCode);
+    const sequence = (batches.filter(b => b.partnerId === partnerId).length + 1).toString().padStart(3, '0');
+    const newBatchId = `${partner.code}/${sequence}/${materialCode}`;
     const now = new Date().toISOString();
+    
     const newBatch: Batch = {
       id: newBatchId,
       partnerId,
-      batchSequence: (batches.filter(b => b.partnerId === partnerId).length + 1).toString().padStart(3, '0'),
+      batchSequence: sequence,
       materialCode,
       weightKg: weight,
       status: 'raw',
       createdAt: now,
-      updatedAt: now
+      updatedAt: now,
+      purchasePricePerKg: pricePerKg
     };
 
     const newTx: Transaction = {
@@ -62,26 +59,44 @@ const App: React.FC = () => {
       type: 'purchase',
       weight,
       date: now,
-      description: `Compra registrada de ${partner.name}`
+      description: `Compra de ${partner.name}${pricePerKg ? ` (R$ ${pricePerKg}/kg)` : ''}`
     };
+
+    if (pricePerKg) {
+      const finEntry: FinancialEntry = {
+        id: Math.random().toString(36).substr(2, 9),
+        type: 'payable',
+        partnerId,
+        batchId: newBatchId,
+        amount: weight * pricePerKg,
+        date: now,
+        status: 'pending',
+        description: `Pagamento Lote ${newBatchId} - ${partner.name}`
+      };
+      setFinancials(prev => [...prev, finEntry]);
+    }
 
     setBatches([...batches, newBatch]);
     setTransactions(prev => [...prev, newTx]);
   };
 
-  const updateBatchStatus = (batchId: string, newStatus: BatchStatus, finalWeight?: number) => {
+  const updateBatchStatus = (batchId: string, newStatus: BatchStatus, config?: { weight?: number, partnerId?: string, pricePerKg?: number }) => {
     const batch = batches.find(b => b.id === batchId);
     if (!batch) return;
 
     const originalWeight = batch.weightKg;
     const now = new Date().toISOString();
+    const finalWeight = config?.weight !== undefined ? config.weight : batch.weightKg;
     
     setBatches(prev => prev.map(b => {
       if (b.id === batchId) {
         return { 
           ...b, 
           status: newStatus, 
-          weightKg: finalWeight !== undefined ? finalWeight : b.weightKg,
+          weightKg: finalWeight,
+          serviceProviderId: config?.partnerId && newStatus === 'extruding' ? config.partnerId : b.serviceProviderId,
+          customerId: config?.partnerId && newStatus === 'sold' ? config.partnerId : b.customerId,
+          salePricePerKg: config?.pricePerKg || b.salePricePerKg,
           updatedAt: now 
         };
       }
@@ -93,27 +108,24 @@ const App: React.FC = () => {
       processing: 'production',
       finished: 'production',
       sold: 'sale',
-      extruded: 'extrusion'
+      extruding: 'extruding',
+      extruded: 'extruded'
     };
 
     const newTxs: Transaction[] = [];
 
-    // Se estiver finalizando e houver diferença de peso, registrar perda
-    if (newStatus === 'finished' && finalWeight !== undefined) {
+    if ((newStatus === 'finished' || newStatus === 'extruded') && config?.weight !== undefined) {
       const loss = originalWeight - finalWeight;
-      
-      // Transação de Produção (Peso Final)
       newTxs.push({
         id: Math.random().toString(36).substr(2, 9),
         batchId,
-        type: 'production',
+        type: typeMapping[newStatus],
         weight: finalWeight,
         originalWeight: originalWeight,
         date: now,
-        description: `Finalização de processo. Peso original: ${originalWeight}kg`
+        description: `${newStatus === 'finished' ? 'Finalização processo' : 'Retorno extrusão'}. Peso final: ${finalWeight}kg`
       });
 
-      // Transação de Perda (Se houver)
       if (loss > 0) {
         newTxs.push({
           id: Math.random().toString(36).substr(2, 9),
@@ -121,15 +133,37 @@ const App: React.FC = () => {
           type: 'loss',
           weight: loss,
           date: now,
-          description: `Perda identificada no processo de moagem/lavagem`
+          description: `Perda registrada no processo (${newStatus})`
         });
       }
+    } else if (newStatus === 'sold' && config?.pricePerKg) {
+      const partner = partners.find(p => p.id === config.partnerId);
+      newTxs.push({
+        id: Math.random().toString(36).substr(2, 9),
+        batchId,
+        type: 'sale',
+        weight: batch.weightKg,
+        date: now,
+        description: `Venda para ${partner?.name || 'Cliente'} (R$ ${config.pricePerKg}/kg)`
+      });
+
+      const finEntry: FinancialEntry = {
+        id: Math.random().toString(36).substr(2, 9),
+        type: 'receivable',
+        partnerId: config.partnerId || '',
+        batchId,
+        amount: batch.weightKg * config.pricePerKg,
+        date: now,
+        status: 'pending',
+        description: `Venda Lote ${batchId} - ${partner?.name}`
+      };
+      setFinancials(prev => [...prev, finEntry]);
     } else {
       newTxs.push({
         id: Math.random().toString(36).substr(2, 9),
         batchId,
         type: typeMapping[newStatus],
-        weight: finalWeight !== undefined ? finalWeight : batch.weightKg,
+        weight: finalWeight,
         date: now,
         description: `Alteração de status para ${newStatus}`
       });
@@ -138,47 +172,12 @@ const App: React.FC = () => {
     setTransactions(prev => [...prev, ...newTxs]);
   };
 
-  const addPartner = (p: Omit<Partner, 'id'>) => {
-    setPartners([...partners, { ...p, id: Math.random().toString(36).substr(2, 9) }]);
-  };
-
-  const updatePartner = (id: string, data: Partial<Partner>) => {
-    setPartners(prev => prev.map(p => p.id === id ? { ...p, ...data } : p));
-  };
-
-  const deletePartner = (id: string) => {
-    if (batches.some(b => b.partnerId === id)) {
-      alert("Não é possível excluir este parceiro pois ele possui lotes vinculados.");
-      return;
-    }
-    if (confirm("Tem certeza que deseja excluir este parceiro?")) {
-      setPartners(prev => prev.filter(p => p.id !== id));
-    }
-  };
-
-  const addMaterial = (m: Omit<Material, 'id'>) => {
-    setMaterials([...materials, { ...m, id: Math.random().toString(36).substr(2, 9) }]);
-  };
-
-  const updateMaterial = (id: string, data: Partial<Material>) => {
-    setMaterials(prev => prev.map(m => m.id === id ? { ...m, ...data } : m));
-  };
-
-  const deleteMaterial = (id: string) => {
-    if (batches.some(b => b.materialCode === materials.find(m => m.id === id)?.code)) {
-      alert("Não é possível excluir este material pois ele possui lotes vinculados.");
-      return;
-    }
-    if (confirm("Tem certeza que deseja excluir este material?")) {
-      setMaterials(prev => prev.filter(m => m.id !== id));
-    }
-  };
-
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'inventory', label: 'Estoque de Lotes', icon: Boxes },
     { id: 'transactions', label: 'Movimentações', icon: ArrowLeftRight },
     { id: 'history', label: 'Histórico', icon: History },
+    { id: 'financial', label: 'Financeiro', icon: WalletCards },
     { id: 'partners', label: 'Parceiros', icon: Users },
     { id: 'materials', label: 'Materiais', icon: Tags },
   ];
@@ -211,7 +210,7 @@ const App: React.FC = () => {
         </nav>
 
         <div className="p-6 border-t border-emerald-800 opacity-60">
-          <p className="text-xs">v1.2.0 &copy; 2024 Green S.A.</p>
+          <p className="text-xs">v1.4.0 &copy; 2024 Green S.A.</p>
         </div>
       </aside>
 
@@ -221,7 +220,7 @@ const App: React.FC = () => {
             <h2 className="text-2xl font-bold text-slate-800 capitalize">
               {navItems.find(i => i.id === activeTab)?.label}
             </h2>
-            <p className="text-slate-500">Controle operacional e rastreabilidade Green.</p>
+            <p className="text-slate-500">Controle operacional e financeiro Green.</p>
           </div>
           
           <div className="flex items-center gap-3">
@@ -234,55 +233,13 @@ const App: React.FC = () => {
           </div>
         </header>
 
-        {activeTab === 'dashboard' && (
-          <Dashboard batches={batches} partners={partners} materials={materials} />
-        )}
-
-        {activeTab === 'inventory' && (
-          <InventoryTable 
-            batches={batches} 
-            partners={partners} 
-            materials={materials} 
-            onUpdateStatus={updateBatchStatus}
-          />
-        )}
-
-        {activeTab === 'partners' && (
-          <PartnerManager 
-            partners={partners} 
-            onAdd={addPartner} 
-            onUpdate={updatePartner} 
-            onDelete={deletePartner}
-          />
-        )}
-
-        {activeTab === 'materials' && (
-          <MaterialManager 
-            materials={materials} 
-            onAdd={addMaterial} 
-            onUpdate={updateMaterial} 
-            onDelete={deleteMaterial}
-          />
-        )}
-
-        {activeTab === 'transactions' && (
-          <TransactionForm 
-            partners={partners} 
-            materials={materials} 
-            batches={batches.filter(b => !['sold', 'extruded'].includes(b.status))}
-            onPurchase={addPurchase}
-            onUpdateStatus={updateBatchStatus}
-          />
-        )}
-
-        {activeTab === 'history' && (
-          <HistoryReport 
-            transactions={transactions} 
-            partners={partners} 
-            materials={materials}
-            batches={batches}
-          />
-        )}
+        {activeTab === 'dashboard' && <Dashboard batches={batches} partners={partners} materials={materials} />}
+        {activeTab === 'inventory' && <InventoryTable batches={batches} partners={partners} materials={materials} onUpdateStatus={updateBatchStatus} />}
+        {activeTab === 'partners' && <PartnerManager partners={partners} onAdd={(p) => setPartners([...partners, { ...p, id: Math.random().toString(36).substr(2, 9) }])} onUpdate={(id, data) => setPartners(prev => prev.map(p => p.id === id ? { ...p, ...data } : p))} onDelete={(id) => setPartners(prev => prev.filter(p => p.id !== id))} />}
+        {activeTab === 'materials' && <MaterialManager materials={materials} onAdd={(m) => setMaterials([...materials, { ...m, id: Math.random().toString(36).substr(2, 9) }])} onUpdate={(id, data) => setMaterials(prev => prev.map(m => m.id === id ? { ...m, ...data } : m))} onDelete={(id) => setMaterials(prev => prev.filter(m => m.id !== id))} />}
+        {activeTab === 'transactions' && <TransactionForm partners={partners} materials={materials} batches={batches.filter(b => b.status !== 'sold')} onPurchase={addPurchase} onUpdateStatus={(id, status, w) => updateBatchStatus(id, status, { weight: w })} />}
+        {activeTab === 'history' && <HistoryReport transactions={transactions} partners={partners} materials={materials} batches={batches} />}
+        {activeTab === 'financial' && <FinancialLedger entries={financials} partners={partners} onStatusChange={(id, status) => setFinancials(prev => prev.map(f => f.id === id ? { ...f, status } : f))} />}
       </main>
     </div>
   );

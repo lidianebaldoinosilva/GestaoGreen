@@ -30,7 +30,10 @@ const HistoryReport: React.FC<Props> = ({ transactions, partners, materials, bat
       case 'purchase': return <ArrowDownRight className="w-4 h-4 text-emerald-500" />;
       case 'sale': return <ArrowUpRight className="w-4 h-4 text-blue-500" />;
       case 'production': return <RefreshCw className="w-4 h-4 text-indigo-500" />;
-      case 'extrusion': return <ArrowUpRight className="w-4 h-4 text-purple-500" />;
+      // Fix: updated 'extrusion' to 'extruding' to match Transaction['type']
+      case 'extruding': return <ArrowUpRight className="w-4 h-4 text-purple-500" />;
+      // Added missing 'extruded' type
+      case 'extruded': return <RefreshCw className="w-4 h-4 text-cyan-500" />;
       case 'loss': return <Scissors className="w-4 h-4 text-amber-500" />;
       default: return null;
     }
@@ -41,7 +44,9 @@ const HistoryReport: React.FC<Props> = ({ transactions, partners, materials, bat
       purchase: 'Entrada / Compra',
       sale: 'Saída / Venda',
       production: 'Processamento',
-      extrusion: 'Envio Extrusão',
+      // Fix: updated 'extrusion' to 'extruding' and added 'extruded' to satisfy Record<Transaction['type'], string>
+      extruding: 'Envio Extrusão',
+      extruded: 'Retorno Extrusão',
       loss: 'Perda de Processo'
     };
     return labels[type];
