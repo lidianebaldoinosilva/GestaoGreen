@@ -49,38 +49,17 @@ const App: React.FC = () => {
 
   const saveData = async () => {
     try {
-      // Preparar as planilhas
       const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(batches), "Estoque");
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(transactions), "Movimentações");
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(transactions), "Historico");
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(financials), "financeiro");
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(partners), "parceiros");
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(materials), "materiais");
 
-      // Aba Estoque
-      const wsEstoque = XLSX.utils.json_to_sheet(batches);
-      XLSX.utils.book_append_sheet(wb, wsEstoque, "Estoque");
-
-      // Aba Movimentações
-      const wsMovimentacoes = XLSX.utils.json_to_sheet(transactions);
-      XLSX.utils.book_append_sheet(wb, wsMovimentacoes, "Movimentações");
-
-      // Aba Histórico
-      const wsHistorico = XLSX.utils.json_to_sheet(transactions);
-      XLSX.utils.book_append_sheet(wb, wsHistorico, "Historico");
-
-      // Aba Financeiro
-      const wsFinanceiro = XLSX.utils.json_to_sheet(financials);
-      XLSX.utils.book_append_sheet(wb, wsFinanceiro, "financeiro");
-
-      // Aba Parceiros
-      const wsParceiros = XLSX.utils.json_to_sheet(partners);
-      XLSX.utils.book_append_sheet(wb, wsParceiros, "parceiros");
-
-      // Aba Materiais
-      const wsMateriais = XLSX.utils.json_to_sheet(materials);
-      XLSX.utils.book_append_sheet(wb, wsMateriais, "materiais");
-
-      // Gerar os bytes do arquivo Excel
       const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
       const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
 
-      // Verificar suporte à File System Access API para escolher pasta e gerenciar conflitos
       if ('showSaveFilePicker' in window) {
         try {
           const handle = await (window as any).showSaveFilePicker({
@@ -95,14 +74,12 @@ const App: React.FC = () => {
           await writable.close();
           alert('Arquivo salvo com sucesso na pasta escolhida!');
         } catch (err: any) {
-          // Se o usuário cancelar a janela de escolha, não fazemos nada (AbortError)
           if (err.name !== 'AbortError') {
             console.error("Erro ao salvar usando picker:", err);
             XLSX.writeFile(wb, "bancodadosgreen.xlsx");
           }
         }
       } else {
-        // Fallback para navegadores sem suporte (download padrão)
         XLSX.writeFile(wb, "bancodadosgreen.xlsx");
       }
     } catch (error) {
@@ -122,23 +99,11 @@ const App: React.FC = () => {
         const workbook = XLSX.read(data, { type: 'binary' });
 
         if (confirm("Isso substituirá todos os dados atuais. Deseja continuar?")) {
-          // Extrair dados de cada aba correlacionando aos nomes na planilha
-          if (workbook.Sheets["parceiros"]) {
-            setPartners(XLSX.utils.sheet_to_json(workbook.Sheets["parceiros"]) as Partner[]);
-          }
-          if (workbook.Sheets["materiais"]) {
-            setMaterials(XLSX.utils.sheet_to_json(workbook.Sheets["materiais"]) as Material[]);
-          }
-          if (workbook.Sheets["Estoque"]) {
-            setBatches(XLSX.utils.sheet_to_json(workbook.Sheets["Estoque"]) as Batch[]);
-          }
-          if (workbook.Sheets["Historico"]) {
-            setTransactions(XLSX.utils.sheet_to_json(workbook.Sheets["Historico"]) as Transaction[]);
-          }
-          if (workbook.Sheets["financeiro"]) {
-            setFinancials(XLSX.utils.sheet_to_json(workbook.Sheets["financeiro"]) as FinancialEntry[]);
-          }
-          
+          if (workbook.Sheets["parceiros"]) setPartners(XLSX.utils.sheet_to_json(workbook.Sheets["parceiros"]) as Partner[]);
+          if (workbook.Sheets["materiais"]) setMaterials(XLSX.utils.sheet_to_json(workbook.Sheets["materiais"]) as Material[]);
+          if (workbook.Sheets["Estoque"]) setBatches(XLSX.utils.sheet_to_json(workbook.Sheets["Estoque"]) as Batch[]);
+          if (workbook.Sheets["Historico"]) setTransactions(XLSX.utils.sheet_to_json(workbook.Sheets["Historico"]) as Transaction[]);
+          if (workbook.Sheets["financeiro"]) setFinancials(XLSX.utils.sheet_to_json(workbook.Sheets["financeiro"]) as FinancialEntry[]);
           alert('Dados carregados com sucesso a partir da planilha Excel!');
         }
       } catch (err) {
@@ -150,13 +115,13 @@ const App: React.FC = () => {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const addPurchase = (partnerId: string, materialCode: string, weight: number, pricePerKg?: number) => {
+  const addPurchase = (partnerId: string, materialCode: string, weight: number, pricePerKg?: number, customDate?: string) => {
     const partner = partners.find(p => p.id === partnerId);
     if (!partner) return;
 
     const sequence = (batches.filter(b => b.partnerId === partnerId).length + 1).toString().padStart(3, '0');
     const newBatchId = `${partner.code}/${sequence}/${materialCode}`;
-    const now = new Date().toISOString();
+    const dateToUse = customDate ? new Date(customDate).toISOString() : new Date().toISOString();
     
     const newBatch: Batch = {
       id: newBatchId,
@@ -165,8 +130,8 @@ const App: React.FC = () => {
       materialCode,
       weightKg: weight,
       status: 'raw',
-      createdAt: now,
-      updatedAt: now,
+      createdAt: dateToUse,
+      updatedAt: dateToUse,
       purchasePricePerKg: pricePerKg
     };
 
@@ -175,7 +140,7 @@ const App: React.FC = () => {
       batchId: newBatchId,
       type: 'purchase',
       weight,
-      date: now,
+      date: dateToUse,
       description: `Compra de ${partner.name}${pricePerKg ? ` (R$ ${pricePerKg}/kg)` : ''}`
     };
 
@@ -186,7 +151,7 @@ const App: React.FC = () => {
         partnerId,
         batchId: newBatchId,
         amount: weight * pricePerKg,
-        date: now,
+        date: dateToUse,
         status: 'pending',
         description: `Pagamento Lote ${newBatchId} - ${partner.name}`
       };
@@ -197,12 +162,12 @@ const App: React.FC = () => {
     setTransactions(prev => [...prev, newTx]);
   };
 
-  const updateBatchStatus = (batchId: string, newStatus: BatchStatus, config?: { weight?: number, partnerId?: string, pricePerKg?: number, materialCode?: string }) => {
+  const updateBatchStatus = (batchId: string, newStatus: BatchStatus, config?: { weight?: number, partnerId?: string, pricePerKg?: number, materialCode?: string, date?: string }) => {
     const batch = batches.find(b => b.id === batchId);
     if (!batch) return;
 
     const originalWeight = batch.weightKg;
-    const now = new Date().toISOString();
+    const dateToUse = config?.date ? new Date(config.date).toISOString() : new Date().toISOString();
     const finalWeight = config?.weight !== undefined ? config.weight : batch.weightKg;
     const finalMaterialCode = config?.materialCode || batch.materialCode;
     
@@ -225,7 +190,7 @@ const App: React.FC = () => {
           serviceProviderId: config?.partnerId && newStatus === 'extruding' ? config.partnerId : b.serviceProviderId,
           customerId: config?.partnerId && newStatus === 'sold' ? config.partnerId : b.customerId,
           salePricePerKg: config?.pricePerKg || b.salePricePerKg,
-          updatedAt: now 
+          updatedAt: dateToUse 
         };
       }
       return b;
@@ -252,7 +217,7 @@ const App: React.FC = () => {
         type: typeMapping[newStatus],
         weight: finalWeight,
         originalWeight: originalWeight,
-        date: now,
+        date: dateToUse,
         description: `${newStatus === 'finished' ? 'Finalização processo' : 'Retorno extrusão'} como ${matName}. Peso final: ${finalWeight}kg`
       });
 
@@ -262,7 +227,7 @@ const App: React.FC = () => {
           batchId: finalBatchId,
           type: 'loss',
           weight: loss,
-          date: now,
+          date: dateToUse,
           description: `Perda registrada no processo (${newStatus})`
         });
       }
@@ -273,7 +238,7 @@ const App: React.FC = () => {
         batchId: finalBatchId,
         type: 'sale',
         weight: batch.weightKg,
-        date: now,
+        date: dateToUse,
         description: `Venda para ${partner?.name || 'Cliente'} (R$ ${config.pricePerKg}/kg)`
       });
 
@@ -283,7 +248,7 @@ const App: React.FC = () => {
         partnerId: config.partnerId || '',
         batchId: finalBatchId,
         amount: batch.weightKg * config.pricePerKg,
-        date: now,
+        date: dateToUse,
         status: 'pending',
         description: `Venda Lote ${finalBatchId} - ${partner?.name}`
       };
@@ -294,12 +259,25 @@ const App: React.FC = () => {
         batchId: finalBatchId,
         type: typeMapping[newStatus],
         weight: finalWeight,
-        date: now,
+        date: dateToUse,
         description: `Alteração de status para ${newStatus}`
       });
     }
 
     setTransactions(prev => [...prev, ...newTxs]);
+  };
+
+  const handleFinancialStatusChange = (id: string, status: FinancialEntry['status'], paymentDate?: string) => {
+    setFinancials(prev => prev.map(f => {
+      if (f.id === id) {
+        return { 
+          ...f, 
+          status, 
+          paymentDate: status === 'paid' ? (paymentDate || new Date().toISOString()) : undefined 
+        };
+      }
+      return f;
+    }));
   };
 
   const navItems = [
@@ -339,33 +317,24 @@ const App: React.FC = () => {
           ))}
         </nav>
 
-        {/* Botões de Salvar/Carregar Excel com suporte a pasta customizada */}
         <div className="p-4 border-t border-emerald-800 space-y-2">
           <button 
             onClick={saveData}
-            title="Escolha onde salvar o arquivo Excel e gerencie conflitos de nome"
             className="w-full flex items-center gap-2 px-4 py-2 text-sm font-semibold bg-emerald-800 hover:bg-emerald-700 rounded-lg transition-colors border border-emerald-700"
           >
             <Download className="w-4 h-4" /> Salvar Excel
           </button>
           <button 
             onClick={() => fileInputRef.current?.click()}
-            title="Carregar arquivo Excel para atualizar o app"
             className="w-full flex items-center gap-2 px-4 py-2 text-sm font-semibold bg-emerald-800 hover:bg-emerald-700 rounded-lg transition-colors border border-emerald-700"
           >
             <Upload className="w-4 h-4" /> Carregar Excel
           </button>
-          <input 
-            type="file" 
-            ref={fileInputRef} 
-            onChange={handleLoadFile} 
-            accept=".xlsx, .xls" 
-            className="hidden" 
-          />
+          <input type="file" ref={fileInputRef} onChange={handleLoadFile} accept=".xlsx, .xls" className="hidden" />
         </div>
 
-        <div className="p-4 border-t border-emerald-800 opacity-60">
-          <p className="text-[10px] text-center uppercase tracking-widest font-bold">v1.4.3 &copy; 2024 Green S.A.</p>
+        <div className="p-4 border-t border-emerald-800 opacity-60 text-center">
+          <p className="text-[10px] uppercase tracking-widest font-bold">v1.4.3 &copy; 2024 Green S.A.</p>
         </div>
       </aside>
 
@@ -394,7 +363,7 @@ const App: React.FC = () => {
         {activeTab === 'materials' && <MaterialManager materials={materials} onAdd={(m) => setMaterials([...materials, { ...m, id: Math.random().toString(36).substr(2, 9) }])} onUpdate={(id, data) => setMaterials(prev => prev.map(m => m.id === id ? { ...m, ...data } : m))} onDelete={(id) => setMaterials(prev => prev.filter(m => m.id !== id))} />}
         {activeTab === 'transactions' && <TransactionForm partners={partners} materials={materials} batches={batches.filter(b => b.status !== 'sold')} onPurchase={addPurchase} onUpdateStatus={(id, status, w) => updateBatchStatus(id, status, { weight: w })} />}
         {activeTab === 'history' && <HistoryReport transactions={transactions} partners={partners} materials={materials} batches={batches} />}
-        {activeTab === 'financial' && <FinancialLedger entries={financials} partners={partners} onStatusChange={(id, status) => setFinancials(prev => prev.map(f => f.id === id ? { ...f, status } : f))} />}
+        {activeTab === 'financial' && <FinancialLedger entries={financials} partners={partners} onStatusChange={handleFinancialStatusChange} />}
       </main>
     </div>
   );

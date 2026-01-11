@@ -1,22 +1,23 @@
 
 import React, { useState, useMemo } from 'react';
 import { FinancialEntry, Partner } from '../types.ts';
-import { DollarSign, ArrowUpCircle, ArrowDownCircle, CheckCircle2, Clock } from 'lucide-react';
+import { DollarSign, ArrowUpCircle, ArrowDownCircle, CheckCircle2, Clock, Calendar, X } from 'lucide-react';
 
 interface Props {
   entries: FinancialEntry[];
   partners: Partner[];
-  onStatusChange: (id: string, status: FinancialEntry['status']) => void;
+  onStatusChange: (id: string, status: FinancialEntry['status'], paymentDate?: string) => void;
 }
 
 const FinancialLedger: React.FC<Props> = ({ entries, partners, onStatusChange }) => {
   const [filterType, setFilterType] = useState<'all' | 'payable' | 'receivable'>('all');
+  const [paymentModal, setPaymentModal] = useState<{ id: string, type: string } | null>(null);
+  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
 
   const filtered = entries.filter(e => filterType === 'all' || e.type === filterType);
   
   const totals = useMemo(() => {
     return {
-      // Filtrar apenas títulos pendentes para o cálculo do total no topo
       payable: entries
         .filter(e => e.type === 'payable' && e.status === 'pending')
         .reduce((acc, curr) => acc + curr.amount, 0),
@@ -25,6 +26,14 @@ const FinancialLedger: React.FC<Props> = ({ entries, partners, onStatusChange })
         .reduce((acc, curr) => acc + curr.amount, 0)
     };
   }, [entries]);
+
+  const handlePay = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (paymentModal) {
+      onStatusChange(paymentModal.id, 'paid', paymentDate);
+      setPaymentModal(null);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -60,11 +69,11 @@ const FinancialLedger: React.FC<Props> = ({ entries, partners, onStatusChange })
           <table className="w-full text-left">
             <thead>
               <tr className="bg-slate-50 text-[10px] uppercase font-bold text-slate-500 tracking-widest border-b border-slate-100">
-                <th className="px-6 py-4">Data</th>
+                <th className="px-6 py-4">Data Registro</th>
                 <th className="px-6 py-4">Beneficiário/Pagador</th>
                 <th className="px-6 py-4">Lote Ref.</th>
-                <th className="px-6 py-4">Valor Bruto</th>
-                <th className="px-6 py-4">Status</th>
+                <th className="px-6 py-4">Valor</th>
+                <th className="px-6 py-4">Status / Pagamento</th>
                 <th className="px-6 py-4">Ação</th>
               </tr>
             </thead>
@@ -81,18 +90,28 @@ const FinancialLedger: React.FC<Props> = ({ entries, partners, onStatusChange })
                     {entry.type === 'payable' ? '-' : '+'} R$ {entry.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                   </td>
                   <td className="px-6 py-4">
-                    <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase inline-flex items-center gap-1 ${entry.status === 'paid' ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : 'bg-amber-100 text-amber-700 border border-amber-200'}`}>
-                      {entry.status === 'paid' ? <CheckCircle2 className="w-3 h-3" /> : <Clock className="w-3 h-3" />}
-                      {entry.status === 'paid' ? 'Liquidado' : 'Em Aberto'}
-                    </span>
+                    <div className="flex flex-col gap-1">
+                      <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase inline-flex items-center gap-1 w-fit ${entry.status === 'paid' ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : 'bg-amber-100 text-amber-700 border border-amber-200'}`}>
+                        {entry.status === 'paid' ? <CheckCircle2 className="w-3 h-3" /> : <Clock className="w-3 h-3" />}
+                        {entry.status === 'paid' ? (entry.type === 'payable' ? 'Pago' : 'Recebido') : 'Em Aberto'}
+                      </span>
+                      {entry.status === 'paid' && entry.paymentDate && (
+                        <span className="text-[10px] font-medium text-slate-400">
+                          em {new Date(entry.paymentDate).toLocaleDateString('pt-BR')}
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-6 py-4">
                     {entry.status === 'pending' && (
                       <button 
-                        onClick={() => onStatusChange(entry.id, 'paid')}
-                        className="text-[10px] font-bold text-emerald-600 hover:underline"
+                        onClick={() => {
+                          setPaymentModal({ id: entry.id, type: entry.type });
+                          setPaymentDate(new Date().toISOString().split('T')[0]);
+                        }}
+                        className="text-[10px] font-bold text-emerald-600 hover:underline px-3 py-1 border border-emerald-200 rounded-lg bg-emerald-50"
                       >
-                        Baixar Título
+                        Liquidar
                       </button>
                     )}
                   </td>
@@ -101,8 +120,35 @@ const FinancialLedger: React.FC<Props> = ({ entries, partners, onStatusChange })
             </tbody>
           </table>
         </div>
-        {filtered.length === 0 && <div className="p-20 text-center italic text-slate-400 flex flex-col items-center gap-2"><DollarSign className="w-8 h-8 opacity-20" />Nenhum registro financeiro encontrado.</div>}
       </div>
+
+      {paymentModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden animate-in zoom-in duration-200">
+            <div className="bg-emerald-600 p-6 text-white flex justify-between items-center">
+              <h3 className="text-xl font-bold">Liquidar Título</h3>
+              <button onClick={() => setPaymentModal(null)} className="p-1 hover:bg-white/20 rounded-full transition"><X className="w-6 h-6" /></button>
+            </div>
+            <form onSubmit={handlePay} className="p-8 space-y-6">
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-slate-600 uppercase flex items-center gap-2">
+                  <Calendar className="w-4 h-4" /> Data do {paymentModal.type === 'payable' ? 'Pagamento' : 'Recebimento'}
+                </label>
+                <input 
+                  type="date" 
+                  required 
+                  value={paymentDate} 
+                  onChange={e => setPaymentDate(e.target.value)}
+                  className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-bold text-slate-700"
+                />
+              </div>
+              <button type="submit" className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-bold hover:bg-emerald-700 shadow-lg transition">
+                Confirmar Liquidação
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

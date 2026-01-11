@@ -57,6 +57,7 @@ export interface FinancialEntry {
   batchId: string;
   amount: number;
   date: string;
+  paymentDate?: string;
   status: 'pending' | 'paid';
   description: string;
 }

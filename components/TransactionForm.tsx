@@ -1,13 +1,13 @@
 
 import React, { useState } from 'react';
 import { Partner, Material, Batch, BatchStatus } from '../types.ts';
-import { ShoppingCart, RefreshCw, Save, DollarSign } from 'lucide-react';
+import { ShoppingCart, RefreshCw, Save, DollarSign, Calendar } from 'lucide-react';
 
 interface Props {
   partners: Partner[];
   materials: Material[];
   batches: Batch[];
-  onPurchase: (partnerId: string, materialCode: string, weight: number, pricePerKg?: number) => void;
+  onPurchase: (partnerId: string, materialCode: string, weight: number, pricePerKg?: number, date?: string) => void;
   onUpdateStatus: (id: string, status: BatchStatus, weight?: number) => void;
 }
 
@@ -18,17 +18,15 @@ const TransactionForm: React.FC<Props> = ({ partners, materials, batches, onPurc
   const [pMaterial, setPMaterial] = useState('010');
   const [pWeight, setPWeight] = useState('');
   const [pPrice, setPPrice] = useState('');
-
-  const [uBatch, setUBatch] = useState('');
-  const [uStatus, setUStatus] = useState<BatchStatus>('processing');
-  const [uWeight, setUWeight] = useState('');
+  const [pDate, setPDate] = useState(new Date().toISOString().split('T')[0]);
 
   const handlePurchaseSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (pPartner && pMaterial && pWeight) {
-      onPurchase(pPartner, pMaterial, parseFloat(pWeight), pPrice ? parseFloat(pPrice) : undefined);
+      onPurchase(pPartner, pMaterial, parseFloat(pWeight), pPrice ? parseFloat(pPrice) : undefined, pDate);
       setPWeight('');
       setPPrice('');
+      setPDate(new Date().toISOString().split('T')[0]);
       alert("Entrada de material registrada!");
     }
   };
@@ -47,7 +45,20 @@ const TransactionForm: React.FC<Props> = ({ partners, materials, batches, onPurc
       <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200">
         {activeForm === 'purchase' ? (
           <form onSubmit={handlePurchaseSubmit} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-slate-600 uppercase">Data da Compra</label>
+                <div className="relative">
+                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+                  <input 
+                    required 
+                    type="date" 
+                    value={pDate} 
+                    onChange={e => setPDate(e.target.value)} 
+                    className="w-full p-3 pl-10 border border-slate-200 rounded-xl bg-slate-50"
+                  />
+                </div>
+              </div>
               <div className="space-y-2">
                 <label className="text-sm font-bold text-slate-600 uppercase">Fornecedor</label>
                 <select required value={pPartner} onChange={e => setPPartner(e.target.value)} className="w-full p-3 border border-slate-200 rounded-xl bg-slate-50">

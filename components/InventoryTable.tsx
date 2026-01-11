@@ -1,17 +1,20 @@
 
 import React, { useState } from 'react';
 import { Batch, Partner, Material, BatchStatus } from '../types.ts';
-import { Search, CheckCircle2, Factory, ArrowRight, X, Scale, AlertTriangle, Truck, ShoppingCart, RefreshCw } from 'lucide-react';
+import { Search, CheckCircle2, Factory, ArrowRight, X, Scale, AlertTriangle, Truck, ShoppingCart, RefreshCw, Filter, Calendar } from 'lucide-react';
 
 interface Props {
   batches: Batch[];
   partners: Partner[];
   materials: Material[];
-  onUpdateStatus: (id: string, status: BatchStatus, config?: { weight?: number, partnerId?: string, pricePerKg?: number, materialCode?: string }) => void;
+  onUpdateStatus: (id: string, status: BatchStatus, config?: { weight?: number, partnerId?: string, pricePerKg?: number, materialCode?: string, date?: string }) => void;
 }
 
 const InventoryTable: React.FC<Props> = ({ batches, partners, materials, onUpdateStatus }) => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [filterPartnerId, setFilterPartnerId] = useState('all');
+  const [filterMaterialCode, setFilterMaterialCode] = useState('all');
+  
   const [modalType, setModalType] = useState<'finalize' | 'extrude_send' | 'extrude_return' | 'sell' | null>(null);
   const [activeBatch, setActiveBatch] = useState<Batch | null>(null);
   
@@ -19,11 +22,17 @@ const InventoryTable: React.FC<Props> = ({ batches, partners, materials, onUpdat
   const [formPartnerId, setFormPartnerId] = useState('');
   const [formPrice, setFormPrice] = useState('');
   const [formMaterialCode, setFormMaterialCode] = useState('');
+  const [formDate, setFormDate] = useState(new Date().toISOString().split('T')[0]);
 
   const filteredBatches = batches.filter(b => {
     const partner = partners.find(p => p.id === b.partnerId);
     const material = materials.find(m => m.code === b.materialCode);
-    return `${b.id} ${partner?.name} ${material?.name}`.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchesSearch = `${b.id} ${partner?.name} ${material?.name}`.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesPartner = filterPartnerId === 'all' || b.partnerId === filterPartnerId;
+    const matchesMaterial = filterMaterialCode === 'all' || b.materialCode === filterMaterialCode;
+    
+    return matchesSearch && matchesPartner && matchesMaterial;
   });
 
   const getStatusLabel = (status: BatchStatus) => {
@@ -54,20 +63,22 @@ const InventoryTable: React.FC<Props> = ({ batches, partners, materials, onUpdat
     e.preventDefault();
     if (!activeBatch) return;
 
+    const config = { 
+      date: formDate,
+      weight: parseFloat(formWeight),
+      materialCode: formMaterialCode,
+      partnerId: formPartnerId,
+      pricePerKg: parseFloat(formPrice)
+    };
+
     if (modalType === 'finalize') {
-      onUpdateStatus(activeBatch.id, 'finished', { 
-        weight: parseFloat(formWeight),
-        materialCode: formMaterialCode
-      });
+      onUpdateStatus(activeBatch.id, 'finished', config);
     } else if (modalType === 'extrude_send') {
-      onUpdateStatus(activeBatch.id, 'extruding', { partnerId: formPartnerId });
+      onUpdateStatus(activeBatch.id, 'extruding', config);
     } else if (modalType === 'extrude_return') {
-      onUpdateStatus(activeBatch.id, 'extruded', { 
-        weight: parseFloat(formWeight),
-        materialCode: formMaterialCode
-      });
+      onUpdateStatus(activeBatch.id, 'extruded', config);
     } else if (modalType === 'sell') {
-      onUpdateStatus(activeBatch.id, 'sold', { partnerId: formPartnerId, pricePerKg: parseFloat(formPrice) });
+      onUpdateStatus(activeBatch.id, 'sold', config);
     }
 
     resetModal();
@@ -80,15 +91,12 @@ const InventoryTable: React.FC<Props> = ({ batches, partners, materials, onUpdat
     setFormMaterialCode(batch.materialCode);
     setFormPartnerId('');
     setFormPrice('');
+    setFormDate(new Date().toISOString().split('T')[0]);
   };
 
   const resetModal = () => {
     setModalType(null);
     setActiveBatch(null);
-    setFormWeight('');
-    setFormPartnerId('');
-    setFormPrice('');
-    setFormMaterialCode('');
   };
 
   const calculateLoss = () => {
@@ -99,16 +107,46 @@ const InventoryTable: React.FC<Props> = ({ batches, partners, materials, onUpdat
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-      <div className="p-6 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      {/* Barra de Filtros */}
+      <div className="p-6 border-b border-slate-100 flex flex-col xl:flex-row xl:items-center gap-4">
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
           <input 
             type="text" 
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
-            placeholder="Filtrar por lote, parceiro ou material..." 
+            placeholder="Pesquisar lote..." 
             className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none text-sm"
           />
+        </div>
+        
+        <div className="flex flex-col sm:flex-row items-center gap-3">
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <Filter className="w-4 h-4 text-slate-400" />
+            <select 
+              value={filterPartnerId} 
+              onChange={e => setFilterPartnerId(e.target.value)}
+              className="bg-slate-50 border border-slate-200 text-slate-600 text-xs font-semibold rounded-lg p-2 focus:ring-2 focus:ring-emerald-500 outline-none w-full sm:w-48"
+            >
+              <option value="all">Todos Fornecedores</option>
+              {partners.filter(p => p.type !== 'customer').map(p => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <select 
+              value={filterMaterialCode} 
+              onChange={e => setFilterMaterialCode(e.target.value)}
+              className="bg-slate-50 border border-slate-200 text-slate-600 text-xs font-semibold rounded-lg p-2 focus:ring-2 focus:ring-emerald-500 outline-none w-full sm:w-48"
+            >
+              <option value="all">Todos Materiais</option>
+              {materials.map(m => (
+                <option key={m.code} value={m.code}>{m.name}</option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 
@@ -182,6 +220,20 @@ const InventoryTable: React.FC<Props> = ({ batches, partners, materials, onUpdat
             </div>
             
             <form onSubmit={handleModalSubmit} className="p-8 space-y-6">
+              {/* Campo de Data Adicionado */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2">
+                  <Calendar className="w-3 h-3" /> Data da Operação
+                </label>
+                <input 
+                  type="date" 
+                  required 
+                  value={formDate} 
+                  onChange={e => setFormDate(e.target.value)}
+                  className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none"
+                />
+              </div>
+
               {(modalType === 'extrude_send' || modalType === 'sell') && (
                 <div className="space-y-2">
                   <label className="text-sm font-bold text-slate-600 uppercase">
@@ -229,7 +281,6 @@ const InventoryTable: React.FC<Props> = ({ batches, partners, materials, onUpdat
                         <option key={m.id} value={m.code}>{m.name} ({m.code})</option>
                       ))}
                     </select>
-                    <p className="text-[10px] text-slate-400">Ao alterar o material, o ID do lote será atualizado para refletir a nova classificação.</p>
                   </div>
 
                   <div className="space-y-4">
