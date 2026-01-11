@@ -47,36 +47,68 @@ const App: React.FC = () => {
     }
   }, []);
 
-  const saveData = () => {
-    // Preparar as planilhas
-    const wb = XLSX.utils.book_new();
+  const saveData = async () => {
+    try {
+      // Preparar as planilhas
+      const wb = XLSX.utils.book_new();
 
-    // Aba Estoque
-    const wsEstoque = XLSX.utils.json_to_sheet(batches);
-    XLSX.utils.book_append_sheet(wb, wsEstoque, "Estoque");
+      // Aba Estoque
+      const wsEstoque = XLSX.utils.json_to_sheet(batches);
+      XLSX.utils.book_append_sheet(wb, wsEstoque, "Estoque");
 
-    // Aba Movimentações (Cópia de transações para o fluxo solicitado)
-    const wsMovimentacoes = XLSX.utils.json_to_sheet(transactions);
-    XLSX.utils.book_append_sheet(wb, wsMovimentacoes, "Movimentações");
+      // Aba Movimentações
+      const wsMovimentacoes = XLSX.utils.json_to_sheet(transactions);
+      XLSX.utils.book_append_sheet(wb, wsMovimentacoes, "Movimentações");
 
-    // Aba Histórico (Dados das transações)
-    const wsHistorico = XLSX.utils.json_to_sheet(transactions);
-    XLSX.utils.book_append_sheet(wb, wsHistorico, "Historico");
+      // Aba Histórico
+      const wsHistorico = XLSX.utils.json_to_sheet(transactions);
+      XLSX.utils.book_append_sheet(wb, wsHistorico, "Historico");
 
-    // Aba Financeiro
-    const wsFinanceiro = XLSX.utils.json_to_sheet(financials);
-    XLSX.utils.book_append_sheet(wb, wsFinanceiro, "financeiro");
+      // Aba Financeiro
+      const wsFinanceiro = XLSX.utils.json_to_sheet(financials);
+      XLSX.utils.book_append_sheet(wb, wsFinanceiro, "financeiro");
 
-    // Aba Parceiros
-    const wsParceiros = XLSX.utils.json_to_sheet(partners);
-    XLSX.utils.book_append_sheet(wb, wsParceiros, "parceiros");
+      // Aba Parceiros
+      const wsParceiros = XLSX.utils.json_to_sheet(partners);
+      XLSX.utils.book_append_sheet(wb, wsParceiros, "parceiros");
 
-    // Aba Materiais
-    const wsMateriais = XLSX.utils.json_to_sheet(materials);
-    XLSX.utils.book_append_sheet(wb, wsMateriais, "materiais");
+      // Aba Materiais
+      const wsMateriais = XLSX.utils.json_to_sheet(materials);
+      XLSX.utils.book_append_sheet(wb, wsMateriais, "materiais");
 
-    // Gerar o arquivo Excel
-    XLSX.writeFile(wb, "bancodadosgreen.xlsx");
+      // Gerar os bytes do arquivo Excel
+      const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+
+      // Verificar suporte à File System Access API para escolher pasta e gerenciar conflitos
+      if ('showSaveFilePicker' in window) {
+        try {
+          const handle = await (window as any).showSaveFilePicker({
+            suggestedName: 'bancodadosgreen.xlsx',
+            types: [{
+              description: 'Excel Workbook',
+              accept: { 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'] }
+            }]
+          });
+          const writable = await handle.createWritable();
+          await writable.write(blob);
+          await writable.close();
+          alert('Arquivo salvo com sucesso na pasta escolhida!');
+        } catch (err: any) {
+          // Se o usuário cancelar a janela de escolha, não fazemos nada (AbortError)
+          if (err.name !== 'AbortError') {
+            console.error("Erro ao salvar usando picker:", err);
+            XLSX.writeFile(wb, "bancodadosgreen.xlsx");
+          }
+        }
+      } else {
+        // Fallback para navegadores sem suporte (download padrão)
+        XLSX.writeFile(wb, "bancodadosgreen.xlsx");
+      }
+    } catch (error) {
+      console.error("Erro geral no processo de exportação:", error);
+      alert("Houve um problema ao gerar a planilha.");
+    }
   };
 
   const handleLoadFile = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -90,7 +122,7 @@ const App: React.FC = () => {
         const workbook = XLSX.read(data, { type: 'binary' });
 
         if (confirm("Isso substituirá todos os dados atuais. Deseja continuar?")) {
-          // Extrair dados de cada aba
+          // Extrair dados de cada aba correlacionando aos nomes na planilha
           if (workbook.Sheets["parceiros"]) {
             setPartners(XLSX.utils.sheet_to_json(workbook.Sheets["parceiros"]) as Partner[]);
           }
@@ -111,7 +143,7 @@ const App: React.FC = () => {
         }
       } catch (err) {
         console.error(err);
-        alert('Erro ao carregar o arquivo Excel. Certifique-se que as abas estão corretas.');
+        alert('Erro ao carregar o arquivo Excel. Certifique-se que as abas estão corretas conforme o backup.');
       }
     };
     reader.readAsBinaryString(file);
@@ -307,11 +339,11 @@ const App: React.FC = () => {
           ))}
         </nav>
 
-        {/* Botões de Salvar/Carregar Excel */}
+        {/* Botões de Salvar/Carregar Excel com suporte a pasta customizada */}
         <div className="p-4 border-t border-emerald-800 space-y-2">
           <button 
             onClick={saveData}
-            title="Salvar arquivo Excel bancodadosgreen.xlsx"
+            title="Escolha onde salvar o arquivo Excel e gerencie conflitos de nome"
             className="w-full flex items-center gap-2 px-4 py-2 text-sm font-semibold bg-emerald-800 hover:bg-emerald-700 rounded-lg transition-colors border border-emerald-700"
           >
             <Download className="w-4 h-4" /> Salvar Excel
