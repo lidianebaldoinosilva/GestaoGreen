@@ -39,8 +39,9 @@ export interface Batch {
 export interface Transaction {
   id: string;
   batchId: string;
-  type: 'purchase' | 'production' | 'sale' | 'extrusion';
+  type: 'purchase' | 'production' | 'sale' | 'extrusion' | 'loss';
   weight: number;
+  originalWeight?: number; // Para transações de produção/perda
   date: string;
   description: string;
 }

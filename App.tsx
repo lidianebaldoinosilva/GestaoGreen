@@ -7,16 +7,31 @@ import InventoryTable from './components/InventoryTable.tsx';
 import PartnerManager from './components/PartnerManager.tsx';
 import MaterialManager from './components/MaterialManager.tsx';
 import TransactionForm from './components/TransactionForm.tsx';
-import { LayoutDashboard, Boxes, Users, ArrowLeftRight, Settings, Sprout, Tags } from 'lucide-react';
+import HistoryReport from './components/HistoryReport.tsx';
+import { LayoutDashboard, Boxes, Users, ArrowLeftRight, Settings, Sprout, Tags, History } from 'lucide-react';
 
 const App: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'inventory' | 'partners' | 'materials' | 'transactions'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'inventory' | 'partners' | 'materials' | 'transactions' | 'history'>('dashboard');
   const [partners, setPartners] = useState<Partner[]>(INITIAL_PARTNERS);
   const [materials, setMaterials] = useState<Material[]>(MATERIALS);
   const [batches, setBatches] = useState<Batch[]>(INITIAL_BATCHES);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
 
-  // Batch ID generation helper
+  // Carregar transações iniciais baseadas no lote inicial
+  useEffect(() => {
+    if (transactions.length === 0 && batches.length > 0) {
+      const initialTxs: Transaction[] = batches.map(b => ({
+        id: `init-${b.id}`,
+        batchId: b.id,
+        type: 'purchase',
+        weight: b.weightKg,
+        date: b.createdAt,
+        description: 'Saldo inicial / Compra registrada'
+      }));
+      setTransactions(initialTxs);
+    }
+  }, []);
+
   const generateBatchId = (partnerCode: string, materialCode: string) => {
     const partner = partners.find(p => p.code === partnerCode);
     const count = batches.filter(b => b.partnerId === partner?.id).length + 1;
@@ -29,6 +44,7 @@ const App: React.FC = () => {
     if (!partner) return;
 
     const newBatchId = generateBatchId(partner.code, materialCode);
+    const now = new Date().toISOString();
     const newBatch: Batch = {
       id: newBatchId,
       partnerId,
@@ -36,8 +52,8 @@ const App: React.FC = () => {
       materialCode,
       weightKg: weight,
       status: 'raw',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      createdAt: now,
+      updatedAt: now
     };
 
     const newTx: Transaction = {
@@ -45,22 +61,28 @@ const App: React.FC = () => {
       batchId: newBatchId,
       type: 'purchase',
       weight,
-      date: new Date().toISOString(),
-      description: `Compra de matéria-prima de ${partner.name}`
+      date: now,
+      description: `Compra registrada de ${partner.name}`
     };
 
     setBatches([...batches, newBatch]);
-    setTransactions([...transactions, newTx]);
+    setTransactions(prev => [...prev, newTx]);
   };
 
-  const updateBatchStatus = (batchId: string, newStatus: BatchStatus, weightChange?: number) => {
+  const updateBatchStatus = (batchId: string, newStatus: BatchStatus, finalWeight?: number) => {
+    const batch = batches.find(b => b.id === batchId);
+    if (!batch) return;
+
+    const originalWeight = batch.weightKg;
+    const now = new Date().toISOString();
+    
     setBatches(prev => prev.map(b => {
       if (b.id === batchId) {
         return { 
           ...b, 
           status: newStatus, 
-          weightKg: weightChange !== undefined ? weightChange : b.weightKg,
-          updatedAt: new Date().toISOString() 
+          weightKg: finalWeight !== undefined ? finalWeight : b.weightKg,
+          updatedAt: now 
         };
       }
       return b;
@@ -74,15 +96,46 @@ const App: React.FC = () => {
       extruded: 'extrusion'
     };
 
-    const newTx: Transaction = {
-      id: Math.random().toString(36).substr(2, 9),
-      batchId,
-      type: typeMapping[newStatus],
-      weight: weightChange || 0,
-      date: new Date().toISOString(),
-      description: `Alteração de status para ${newStatus}`
-    };
-    setTransactions(prev => [...prev, newTx]);
+    const newTxs: Transaction[] = [];
+
+    // Se estiver finalizando e houver diferença de peso, registrar perda
+    if (newStatus === 'finished' && finalWeight !== undefined) {
+      const loss = originalWeight - finalWeight;
+      
+      // Transação de Produção (Peso Final)
+      newTxs.push({
+        id: Math.random().toString(36).substr(2, 9),
+        batchId,
+        type: 'production',
+        weight: finalWeight,
+        originalWeight: originalWeight,
+        date: now,
+        description: `Finalização de processo. Peso original: ${originalWeight}kg`
+      });
+
+      // Transação de Perda (Se houver)
+      if (loss > 0) {
+        newTxs.push({
+          id: Math.random().toString(36).substr(2, 9),
+          batchId,
+          type: 'loss',
+          weight: loss,
+          date: now,
+          description: `Perda identificada no processo de moagem/lavagem`
+        });
+      }
+    } else {
+      newTxs.push({
+        id: Math.random().toString(36).substr(2, 9),
+        batchId,
+        type: typeMapping[newStatus],
+        weight: finalWeight !== undefined ? finalWeight : batch.weightKg,
+        date: now,
+        description: `Alteração de status para ${newStatus}`
+      });
+    }
+
+    setTransactions(prev => [...prev, ...newTxs]);
   };
 
   const addPartner = (p: Omit<Partner, 'id'>) => {
@@ -125,13 +178,13 @@ const App: React.FC = () => {
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'inventory', label: 'Estoque de Lotes', icon: Boxes },
     { id: 'transactions', label: 'Movimentações', icon: ArrowLeftRight },
+    { id: 'history', label: 'Histórico', icon: History },
     { id: 'partners', label: 'Parceiros', icon: Users },
     { id: 'materials', label: 'Materiais', icon: Tags },
   ];
 
   return (
     <div className="flex min-h-screen bg-slate-50">
-      {/* Sidebar */}
       <aside className="w-64 bg-emerald-900 text-emerald-50 hidden md:flex flex-col sticky top-0 h-screen shadow-xl">
         <div className="p-6 flex items-center gap-3 border-b border-emerald-800">
           <div className="bg-emerald-500 p-2 rounded-lg">
@@ -140,7 +193,7 @@ const App: React.FC = () => {
           <h1 className="text-xl font-bold tracking-tight">Green Reciclagem</h1>
         </div>
         
-        <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
+        <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
           {navItems.map(item => (
             <button
               key={item.id}
@@ -158,11 +211,10 @@ const App: React.FC = () => {
         </nav>
 
         <div className="p-6 border-t border-emerald-800 opacity-60">
-          <p className="text-xs">v1.1.0 &copy; 2024 Green S.A.</p>
+          <p className="text-xs">v1.2.0 &copy; 2024 Green S.A.</p>
         </div>
       </aside>
 
-      {/* Main Content */}
       <main className="flex-1 p-4 md:p-8 overflow-x-hidden">
         <header className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
@@ -177,7 +229,7 @@ const App: React.FC = () => {
               onClick={() => setActiveTab('transactions')}
               className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-lg font-semibold transition shadow-sm flex items-center gap-2"
              >
-               <ArrowLeftRight className="w-4 h-4" /> Nova Movimentação
+               <ArrowLeftRight className="w-4 h-4" /> Registrar Entrada
              </button>
           </div>
         </header>
@@ -220,6 +272,15 @@ const App: React.FC = () => {
             batches={batches.filter(b => !['sold', 'extruded'].includes(b.status))}
             onPurchase={addPurchase}
             onUpdateStatus={updateBatchStatus}
+          />
+        )}
+
+        {activeTab === 'history' && (
+          <HistoryReport 
+            transactions={transactions} 
+            partners={partners} 
+            materials={materials}
+            batches={batches}
           />
         )}
       </main>
