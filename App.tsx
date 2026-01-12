@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Partner, Material, Batch, Transaction, BatchStatus, FinancialEntry } from './types.ts';
+import { Partner, Material, Batch, Transaction, BatchStatus, FinancialEntry, ShippingInfo } from './types.ts';
 import { INITIAL_PARTNERS, MATERIALS, INITIAL_BATCHES } from './constants.tsx';
 import Dashboard from './components/Dashboard.tsx';
 import InventoryTable from './components/InventoryTable.tsx';
@@ -115,7 +115,7 @@ const App: React.FC = () => {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const addPurchase = (partnerId: string, materialCode: string, weight: number, pricePerKg?: number, customDate?: string) => {
+  const addPurchase = (partnerId: string, materialCode: string, weight: number, pricePerKg?: number, customDate?: string, shipping?: ShippingInfo) => {
     const partner = partners.find(p => p.id === partnerId);
     if (!partner) return;
 
@@ -132,7 +132,8 @@ const App: React.FC = () => {
       status: 'raw',
       createdAt: dateToUse,
       updatedAt: dateToUse,
-      purchasePricePerKg: pricePerKg
+      purchasePricePerKg: pricePerKg,
+      shipping: shipping
     };
 
     const newTx: Transaction = {
@@ -144,25 +145,46 @@ const App: React.FC = () => {
       description: `Compra de ${partner.name}${pricePerKg ? ` (R$ ${pricePerKg}/kg)` : ''}`
     };
 
+    const newFinEntries: FinancialEntry[] = [];
+
     if (pricePerKg) {
-      const finEntry: FinancialEntry = {
+      newFinEntries.push({
         id: Math.random().toString(36).substr(2, 9),
         type: 'payable',
+        operationType: 'compra',
         partnerId,
         batchId: newBatchId,
         amount: weight * pricePerKg,
         date: dateToUse,
         status: 'pending',
         description: `Pagamento Lote ${newBatchId} - ${partner.name}`
-      };
-      setFinancials(prev => [...prev, finEntry]);
+      });
     }
 
+    if (shipping && !shipping.isFobOrOwn && shipping.cost && shipping.cost > 0) {
+        newFinEntries.push({
+            id: Math.random().toString(36).substr(2, 9),
+            type: 'payable',
+            operationType: 'frete',
+            partnerId: 'carrier-generic',
+            batchId: newBatchId,
+            amount: shipping.cost,
+            date: dateToUse,
+            status: 'pending',
+            description: `Frete Lote ${newBatchId} - ${shipping.carrier || 'Transportadora'}`
+        });
+    }
+
+    setFinancials(prev => [...prev, ...newFinEntries]);
     setBatches([...batches, newBatch]);
     setTransactions(prev => [...prev, newTx]);
   };
 
-  const updateBatchStatus = (batchId: string, newStatus: BatchStatus, config?: { weight?: number, partnerId?: string, pricePerKg?: number, materialCode?: string, date?: string }) => {
+  const deleteBatch = (batchId: string) => {
+    setBatches(prev => prev.filter(b => b.id !== batchId));
+  };
+
+  const updateBatchStatus = (batchId: string, newStatus: BatchStatus, config?: { weight?: number, partnerId?: string, pricePerKg?: number, materialCode?: string, date?: string, shipping?: ShippingInfo }) => {
     const batch = batches.find(b => b.id === batchId);
     if (!batch) return;
 
@@ -190,7 +212,8 @@ const App: React.FC = () => {
           serviceProviderId: config?.partnerId && newStatus === 'extruding' ? config.partnerId : b.serviceProviderId,
           customerId: config?.partnerId && newStatus === 'sold' ? config.partnerId : b.customerId,
           salePricePerKg: config?.pricePerKg || b.salePricePerKg,
-          updatedAt: dateToUse 
+          updatedAt: dateToUse,
+          shipping: config?.shipping || b.shipping
         };
       }
       return b;
@@ -206,6 +229,7 @@ const App: React.FC = () => {
     };
 
     const newTxs: Transaction[] = [];
+    const newFinEntries: FinancialEntry[] = [];
 
     if ((newStatus === 'finished' || newStatus === 'extruded') && config?.weight !== undefined) {
       const loss = originalWeight - finalWeight;
@@ -242,17 +266,31 @@ const App: React.FC = () => {
         description: `Venda para ${partner?.name || 'Cliente'} (R$ ${config.pricePerKg}/kg)`
       });
 
-      const finEntry: FinancialEntry = {
+      newFinEntries.push({
         id: Math.random().toString(36).substr(2, 9),
         type: 'receivable',
+        operationType: 'venda',
         partnerId: config.partnerId || '',
         batchId: finalBatchId,
         amount: batch.weightKg * config.pricePerKg,
         date: dateToUse,
         status: 'pending',
         description: `Venda Lote ${finalBatchId} - ${partner?.name}`
-      };
-      setFinancials(prev => [...prev, finEntry]);
+      });
+
+      if (config.shipping && !config.shipping.isFobOrOwn && config.shipping.cost && config.shipping.cost > 0) {
+        newFinEntries.push({
+            id: Math.random().toString(36).substr(2, 9),
+            type: 'payable',
+            operationType: 'frete',
+            partnerId: 'carrier-generic',
+            batchId: finalBatchId,
+            amount: config.shipping.cost,
+            date: dateToUse,
+            status: 'pending',
+            description: `Frete Venda Lote ${finalBatchId} - ${config.shipping.carrier || 'Transportadora'}`
+        });
+      }
     } else {
       newTxs.push({
         id: Math.random().toString(36).substr(2, 9),
@@ -265,6 +303,7 @@ const App: React.FC = () => {
     }
 
     setTransactions(prev => [...prev, ...newTxs]);
+    setFinancials(prev => [...prev, ...newFinEntries]);
   };
 
   const handleFinancialStatusChange = (id: string, status: FinancialEntry['status'], paymentDate?: string) => {
@@ -278,6 +317,15 @@ const App: React.FC = () => {
       }
       return f;
     }));
+  };
+
+  const addManualFinancialEntry = (entry: Omit<FinancialEntry, 'id' | 'status'>) => {
+    const newEntry: FinancialEntry = {
+      ...entry,
+      id: Math.random().toString(36).substr(2, 9),
+      status: 'pending'
+    };
+    setFinancials(prev => [...prev, newEntry]);
   };
 
   const navItems = [
@@ -358,12 +406,12 @@ const App: React.FC = () => {
         </header>
 
         {activeTab === 'dashboard' && <Dashboard batches={batches} partners={partners} materials={materials} />}
-        {activeTab === 'inventory' && <InventoryTable batches={batches} partners={partners} materials={materials} onUpdateStatus={updateBatchStatus} />}
+        {activeTab === 'inventory' && <InventoryTable batches={batches} partners={partners} materials={materials} onUpdateStatus={updateBatchStatus} onDeleteBatch={deleteBatch} />}
         {activeTab === 'partners' && <PartnerManager partners={partners} onAdd={(p) => setPartners([...partners, { ...p, id: Math.random().toString(36).substr(2, 9) }])} onUpdate={(id, data) => setPartners(prev => prev.map(p => p.id === id ? { ...p, ...data } : p))} onDelete={(id) => setPartners(prev => prev.filter(p => p.id !== id))} />}
         {activeTab === 'materials' && <MaterialManager materials={materials} onAdd={(m) => setMaterials([...materials, { ...m, id: Math.random().toString(36).substr(2, 9) }])} onUpdate={(id, data) => setMaterials(prev => prev.map(m => m.id === id ? { ...m, ...data } : m))} onDelete={(id) => setMaterials(prev => prev.filter(m => m.id !== id))} />}
         {activeTab === 'transactions' && <TransactionForm partners={partners} materials={materials} batches={batches.filter(b => b.status !== 'sold')} onPurchase={addPurchase} onUpdateStatus={(id, status, w) => updateBatchStatus(id, status, { weight: w })} />}
         {activeTab === 'history' && <HistoryReport transactions={transactions} partners={partners} materials={materials} batches={batches} />}
-        {activeTab === 'financial' && <FinancialLedger entries={financials} partners={partners} onStatusChange={handleFinancialStatusChange} />}
+        {activeTab === 'financial' && <FinancialLedger entries={financials} partners={partners} onStatusChange={handleFinancialStatusChange} onAddEntry={addManualFinancialEntry} />}
       </main>
     </div>
   );

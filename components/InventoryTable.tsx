@@ -1,16 +1,17 @@
 
 import React, { useState } from 'react';
-import { Batch, Partner, Material, BatchStatus } from '../types.ts';
-import { Search, CheckCircle2, Factory, ArrowRight, X, Scale, AlertTriangle, Truck, ShoppingCart, RefreshCw, Filter, Calendar } from 'lucide-react';
+import { Batch, Partner, Material, BatchStatus, ShippingInfo } from '../types.ts';
+import { Search, CheckCircle2, Factory, ArrowRight, X, Scale, AlertTriangle, Truck, ShoppingCart, RefreshCw, Filter, Calendar, Trash2 } from 'lucide-react';
 
 interface Props {
   batches: Batch[];
   partners: Partner[];
   materials: Material[];
-  onUpdateStatus: (id: string, status: BatchStatus, config?: { weight?: number, partnerId?: string, pricePerKg?: number, materialCode?: string, date?: string }) => void;
+  onUpdateStatus: (id: string, status: BatchStatus, config?: { weight?: number, partnerId?: string, pricePerKg?: number, materialCode?: string, date?: string, shipping?: ShippingInfo }) => void;
+  onDeleteBatch: (id: string) => void;
 }
 
-const InventoryTable: React.FC<Props> = ({ batches, partners, materials, onUpdateStatus }) => {
+const InventoryTable: React.FC<Props> = ({ batches, partners, materials, onUpdateStatus, onDeleteBatch }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterPartnerId, setFilterPartnerId] = useState('all');
   const [filterMaterialCode, setFilterMaterialCode] = useState('all');
@@ -23,6 +24,16 @@ const InventoryTable: React.FC<Props> = ({ batches, partners, materials, onUpdat
   const [formPrice, setFormPrice] = useState('');
   const [formMaterialCode, setFormMaterialCode] = useState('');
   const [formDate, setFormDate] = useState(new Date().toISOString().split('T')[0]);
+
+  // Shipping Info States (Local to modal)
+  const [sPlate, setSPlate] = useState('');
+  const [sDriver, setSDriver] = useState('');
+  const [sCarrier, setSCarrier] = useState('');
+  const [sDoc, setSDoc] = useState('');
+  const [sCost, setSCost] = useState('');
+  const [sOrigin, setSOrigin] = useState('');
+  const [sDest, setSDest] = useState('');
+  const [sIsFobOrOwn, setSIsFobOrOwn] = useState(false);
 
   const filteredBatches = batches.filter(b => {
     const partner = partners.find(p => p.id === b.partnerId);
@@ -63,12 +74,24 @@ const InventoryTable: React.FC<Props> = ({ batches, partners, materials, onUpdat
     e.preventDefault();
     if (!activeBatch) return;
 
+    const shipping: ShippingInfo = modalType === 'sell' ? {
+      plate: sPlate,
+      driverName: sDriver,
+      carrier: sCarrier,
+      document: sDoc,
+      cost: parseFloat(sCost) || 0,
+      origin: sOrigin,
+      destination: sDest,
+      isFobOrOwn: sIsFobOrOwn
+    } : undefined;
+
     const config = { 
       date: formDate,
       weight: parseFloat(formWeight),
       materialCode: formMaterialCode,
       partnerId: formPartnerId,
-      pricePerKg: parseFloat(formPrice)
+      pricePerKg: parseFloat(formPrice),
+      shipping
     };
 
     if (modalType === 'finalize') {
@@ -92,6 +115,16 @@ const InventoryTable: React.FC<Props> = ({ batches, partners, materials, onUpdat
     setFormPartnerId('');
     setFormPrice('');
     setFormDate(new Date().toISOString().split('T')[0]);
+    
+    // Clear shipping
+    setSPlate('');
+    setSDriver('');
+    setSCarrier('');
+    setSDoc('');
+    setSCost('');
+    setSOrigin('');
+    setSDest('');
+    setSIsFobOrOwn(false);
   };
 
   const resetModal = () => {
@@ -196,6 +229,13 @@ const InventoryTable: React.FC<Props> = ({ batches, partners, materials, onUpdat
                       {batch.status === 'extruding' && (
                         <button onClick={() => openModal('extrude_return', batch)} className="p-2 text-cyan-600 hover:bg-cyan-50 rounded-lg transition" title="Retorno de Extrusão"><RefreshCw className="w-4 h-4" /></button>
                       )}
+                      <button 
+                        onClick={() => { if(confirm(`Deseja excluir o lote ${batch.id} permanentemente?`)) onDeleteBatch(batch.id); }} 
+                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition" 
+                        title="Excluir Lote"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -207,7 +247,7 @@ const InventoryTable: React.FC<Props> = ({ batches, partners, materials, onUpdat
 
       {modalType && activeBatch && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in duration-200">
+          <div className={`bg-white rounded-3xl shadow-2xl w-full ${modalType === 'sell' ? 'max-w-2xl' : 'max-w-lg'} overflow-hidden animate-in zoom-in duration-200`}>
             <div className="bg-emerald-600 p-6 text-white flex justify-between items-center">
               <h3 className="text-xl font-bold">
                 {modalType === 'finalize' && 'Finalizar Processo'}
@@ -219,8 +259,8 @@ const InventoryTable: React.FC<Props> = ({ batches, partners, materials, onUpdat
               <button onClick={resetModal} className="p-1 hover:bg-white/20 rounded-full transition"><X className="w-6 h-6" /></button>
             </div>
             
-            <form onSubmit={handleModalSubmit} className="p-8 space-y-6">
-              {/* Campo de Data Adicionado */}
+            <form onSubmit={handleModalSubmit} className="p-8 space-y-6 overflow-y-auto max-h-[85vh]">
+              {/* Common Fields */}
               <div className="space-y-2">
                 <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2">
                   <Calendar className="w-3 h-3" /> Data da Operação
@@ -256,15 +296,49 @@ const InventoryTable: React.FC<Props> = ({ batches, partners, materials, onUpdat
               )}
 
               {modalType === 'sell' && (
-                <div className="space-y-2">
-                  <label className="text-sm font-bold text-slate-600 uppercase">Preço de Venda por Kg (R$)</label>
-                  <input required type="number" step="0.01" value={formPrice} onChange={e => setFormPrice(e.target.value)} className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl" placeholder="Ex: 5,50" />
-                  {formPrice && (
-                    <p className="text-sm font-bold text-emerald-600 mt-2">
-                      Total: R$ {(activeBatch.weightKg * parseFloat(formPrice)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                    </p>
-                  )}
-                </div>
+                <>
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-slate-600 uppercase">Preço de Venda por Kg (R$)</label>
+                    <input required type="number" step="0.01" value={formPrice} onChange={e => setFormPrice(e.target.value)} className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl" placeholder="Ex: 5,50" />
+                    {formPrice && (
+                      <p className="text-sm font-bold text-emerald-600 mt-2">
+                        Total Receita: R$ {(activeBatch.weightKg * parseFloat(formPrice)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Shipping Section for Sell */}
+                  <div className="space-y-4 pt-4 border-t border-slate-100">
+                    <div className="flex justify-between items-center">
+                      <h4 className="text-md font-bold text-slate-700 flex items-center gap-2 uppercase">
+                        <Truck className="w-4 h-4 text-blue-500" /> Informações de Frete
+                      </h4>
+                      <label className="flex items-center gap-2 text-xs font-semibold text-slate-500 cursor-pointer">
+                        <input type="checkbox" checked={sIsFobOrOwn} onChange={e => setSIsFobOrOwn(e.target.checked)} className="w-3 h-3 text-emerald-600" />
+                        Próprio / FOB
+                      </label>
+                    </div>
+
+                    <div className={`grid grid-cols-2 gap-4 transition-opacity ${sIsFobOrOwn ? 'opacity-30 pointer-events-none' : 'opacity-100'}`}>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase">Placa</label>
+                        <input type="text" value={sPlate} onChange={e => setSPlate(e.target.value)} className="w-full p-2 border border-slate-200 rounded-lg bg-slate-50 uppercase text-xs" />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase">Motorista</label>
+                        <input type="text" value={sDriver} onChange={e => setSDriver(e.target.value)} className="w-full p-2 border border-slate-200 rounded-lg bg-slate-50 text-xs" />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase">Transportadora</label>
+                        <input type="text" value={sCarrier} onChange={e => setSCarrier(e.target.value)} className="w-full p-2 border border-slate-200 rounded-lg bg-slate-50 text-xs" />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase">Valor Frete (R$)</label>
+                        <input type="number" value={sCost} onChange={e => setSCost(e.target.value)} className="w-full p-2 border border-slate-200 rounded-lg bg-slate-50 text-xs" />
+                      </div>
+                    </div>
+                  </div>
+                </>
               )}
 
               {(modalType === 'finalize' || modalType === 'extrude_return') && (

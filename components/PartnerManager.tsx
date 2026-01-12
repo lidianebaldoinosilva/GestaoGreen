@@ -36,7 +36,6 @@ const PartnerManager: React.FC<Props> = ({ partners, onAdd, onUpdate, onDelete }
     }
 
     if (editingId) {
-      // Verifica se o novo código já está em uso por OUTRO parceiro
       if (partners.some(p => p.code === formData.code && p.id !== editingId)) {
         alert("Este código de parceiro já está em uso por outra empresa.");
         return;
@@ -44,7 +43,6 @@ const PartnerManager: React.FC<Props> = ({ partners, onAdd, onUpdate, onDelete }
       onUpdate(editingId, formData);
       setEditingId(null);
     } else {
-      // Check if code already exists
       if (partners.some(p => p.code === formData.code)) {
         alert("Este código de parceiro já está em uso.");
         return;
@@ -134,6 +132,7 @@ const PartnerManager: React.FC<Props> = ({ partners, onAdd, onUpdate, onDelete }
                 >
                   <option value="supplier">Fornecedor</option>
                   <option value="customer">Cliente</option>
+                  <option value="service_provider">Prestador de Serviço</option>
                   <option value="both">Ambos (Fornecedor e Cliente)</option>
                 </select>
               </div>
@@ -240,9 +239,10 @@ const PartnerManager: React.FC<Props> = ({ partners, onAdd, onUpdate, onDelete }
                 <span className="text-[10px] font-mono font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded">ID: {p.code}</span>
                 <span className={`text-[10px] uppercase tracking-wider font-extrabold px-2 py-0.5 rounded ${
                   p.type === 'supplier' ? 'bg-amber-100 text-amber-700' : 
-                  p.type === 'customer' ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'
+                  p.type === 'customer' ? 'bg-blue-100 text-blue-700' : 
+                  p.type === 'service_provider' ? 'bg-indigo-100 text-indigo-700' : 'bg-emerald-100 text-emerald-700'
                 }`}>
-                  {p.type === 'supplier' ? 'Fornecedor' : p.type === 'customer' ? 'Cliente' : 'Ambos'}
+                  {p.type === 'supplier' ? 'Fornecedor' : p.type === 'customer' ? 'Cliente' : p.type === 'service_provider' ? 'Prestador' : 'Ambos'}
                 </span>
               </div>
               <h4 className="font-bold text-slate-800 text-lg leading-tight">{p.name}</h4>

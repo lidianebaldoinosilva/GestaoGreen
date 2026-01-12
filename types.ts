@@ -25,6 +25,17 @@ export interface Partner {
 
 export type BatchStatus = 'raw' | 'processing' | 'finished' | 'sold' | 'extruding' | 'extruded';
 
+export interface ShippingInfo {
+  plate?: string;
+  driverName?: string;
+  carrier?: string;
+  document?: string;
+  cost?: number;
+  origin?: string;
+  destination?: string;
+  isFobOrOwn?: boolean;
+}
+
 export interface Batch {
   id: string; // format: 012/002/010
   partnerId: string;
@@ -38,6 +49,7 @@ export interface Batch {
   updatedAt: string;
   salePricePerKg?: number;
   purchasePricePerKg?: number;
+  shipping?: ShippingInfo;
 }
 
 export interface Transaction {
@@ -53,6 +65,7 @@ export interface Transaction {
 export interface FinancialEntry {
   id: string;
   type: 'payable' | 'receivable';
+  operationType: string; // Changed from union to string to allow custom types
   partnerId: string;
   batchId: string;
   amount: number;
