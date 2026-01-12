@@ -1,20 +1,26 @@
 
 import React, { useState, useMemo } from 'react';
 import { FinancialEntry, Partner } from '../types.ts';
-import { DollarSign, ArrowUpCircle, ArrowDownCircle, CheckCircle2, Clock, Calendar, X, Tag, Plus, Filter, Search, PlusCircle } from 'lucide-react';
+import { DollarSign, ArrowUpCircle, ArrowDownCircle, CheckCircle2, Clock, Calendar, X, Tag, Plus, Filter, Search, PlusCircle, Edit } from 'lucide-react';
 
 interface Props {
   entries: FinancialEntry[];
   partners: Partner[];
   onStatusChange: (id: string, status: FinancialEntry['status'], paymentDate?: string) => void;
+  onUpdateEntry: (id: string, updates: Partial<FinancialEntry>) => void;
   onAddEntry: (entry: Omit<FinancialEntry, 'id' | 'status'>) => void;
 }
 
-const FinancialLedger: React.FC<Props> = ({ entries, partners, onStatusChange, onAddEntry }) => {
+const FinancialLedger: React.FC<Props> = ({ entries, partners, onStatusChange, onUpdateEntry, onAddEntry }) => {
   const [filterType, setFilterType] = useState<'all' | 'payable' | 'receivable'>('all');
   const [paymentModal, setPaymentModal] = useState<{ id: string, type: string } | null>(null);
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
   
+  // Edit State
+  const [editModalEntry, setEditModalEntry] = useState<FinancialEntry | null>(null);
+  const [editDueDate, setEditDueDate] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+
   // Custom Operation Types State
   const [operationTypes, setOperationTypes] = useState<string[]>([
     'Compra de Matéria Prima',
@@ -96,6 +102,17 @@ const FinancialLedger: React.FC<Props> = ({ entries, partners, onStatusChange, o
     }
   };
 
+  const handleEditSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (editModalEntry) {
+      onUpdateEntry(editModalEntry.id, {
+        dueDate: new Date(editDueDate).toISOString(),
+        description: editDescription
+      });
+      setEditModalEntry(null);
+    }
+  };
+
   const handleAddSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -137,6 +154,12 @@ const FinancialLedger: React.FC<Props> = ({ entries, partners, onStatusChange, o
     if (t.includes('frete')) return 'bg-blue-50 text-blue-600 border-blue-200';
     if (t.includes('servico') || t.includes('serviço')) return 'bg-indigo-50 text-indigo-600 border-indigo-200';
     return 'bg-slate-50 text-slate-600 border-slate-200';
+  };
+
+  const openEditModal = (entry: FinancialEntry) => {
+    setEditModalEntry(entry);
+    setEditDueDate(new Date(entry.dueDate).toISOString().split('T')[0]);
+    setEditDescription(entry.description);
   };
 
   return (
@@ -220,12 +243,12 @@ const FinancialLedger: React.FC<Props> = ({ entries, partners, onStatusChange, o
                 <th className="px-6 py-4">Lote Ref.</th>
                 <th className="px-6 py-4">Valor</th>
                 <th className="px-6 py-4">Status / Pagamento</th>
-                <th className="px-6 py-4">Ação</th>
+                <th className="px-6 py-4 text-center">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filtered.map(entry => (
-                <tr key={entry.id} className="hover:bg-slate-50/50 transition">
+                <tr key={entry.id} className="hover:bg-slate-50/50 transition group">
                   <td className="px-6 py-4 text-xs text-slate-500">{new Date(entry.date).toLocaleDateString()}</td>
                   <td className="px-6 py-4 text-xs font-bold text-emerald-700">{new Date(entry.dueDate).toLocaleDateString()}</td>
                   <td className="px-6 py-4">
@@ -261,17 +284,26 @@ const FinancialLedger: React.FC<Props> = ({ entries, partners, onStatusChange, o
                     </div>
                   </td>
                   <td className="px-6 py-4">
-                    {entry.status === 'pending' && (
+                    <div className="flex items-center justify-center gap-2">
                       <button 
-                        onClick={() => {
-                          setPaymentModal({ id: entry.id, type: entry.type });
-                          setPaymentDate(new Date().toISOString().split('T')[0]);
-                        }}
-                        className="text-[10px] font-bold text-emerald-600 hover:underline px-3 py-1 border border-emerald-200 rounded-lg bg-emerald-50"
+                        onClick={() => openEditModal(entry)}
+                        className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition"
+                        title="Editar Registro"
                       >
-                        Liquidar
+                        <Edit className="w-4 h-4" />
                       </button>
-                    )}
+                      {entry.status === 'pending' && (
+                        <button 
+                          onClick={() => {
+                            setPaymentModal({ id: entry.id, type: entry.type });
+                            setPaymentDate(new Date().toISOString().split('T')[0]);
+                          }}
+                          className="text-[10px] font-bold text-emerald-600 hover:underline px-3 py-1 border border-emerald-200 rounded-lg bg-emerald-50 whitespace-nowrap"
+                        >
+                          Liquidar
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -279,6 +311,47 @@ const FinancialLedger: React.FC<Props> = ({ entries, partners, onStatusChange, o
           </table>
         </div>
       </div>
+
+      {/* Edit Modal */}
+      {editModalEntry && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden animate-in zoom-in duration-200">
+            <div className="bg-emerald-600 p-6 text-white flex justify-between items-center">
+              <h3 className="text-xl font-bold">Editar Registro</h3>
+              <button onClick={() => setEditModalEntry(null)} className="p-1 hover:bg-white/20 rounded-full transition"><X className="w-6 h-6" /></button>
+            </div>
+            <form onSubmit={handleEditSubmit} className="p-8 space-y-6">
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-400 uppercase flex items-center gap-2">
+                  <Calendar className="w-4 h-4" /> Novo Vencimento
+                </label>
+                <input 
+                  type="date" 
+                  required 
+                  value={editDueDate} 
+                  onChange={e => setEditDueDate(e.target.value)}
+                  className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none font-bold text-slate-700"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-400 uppercase flex items-center gap-2">
+                  <Tag className="w-4 h-4" /> Descrição
+                </label>
+                <textarea 
+                  required 
+                  rows={3}
+                  value={editDescription} 
+                  onChange={e => setEditDescription(e.target.value)}
+                  className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none text-sm text-slate-700"
+                />
+              </div>
+              <button type="submit" className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-bold hover:bg-emerald-700 shadow-lg transition">
+                Salvar Alterações
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Manual Entry Modal */}
       {isAddModalOpen && (

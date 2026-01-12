@@ -325,6 +325,10 @@ const App: React.FC = () => {
     }));
   };
 
+  const handleFinancialEntryUpdate = (id: string, updates: Partial<FinancialEntry>) => {
+    setFinancials(prev => prev.map(f => f.id === id ? { ...f, ...updates } : f));
+  };
+
   const addManualFinancialEntry = (entry: Omit<FinancialEntry, 'id' | 'status'>) => {
     const newEntry: FinancialEntry = {
       ...entry,
@@ -417,7 +421,7 @@ const App: React.FC = () => {
         {activeTab === 'materials' && <MaterialManager materials={materials} onAdd={(m) => setMaterials([...materials, { ...m, id: Math.random().toString(36).substr(2, 9) }])} onUpdate={(id, data) => setMaterials(prev => prev.map(m => m.id === id ? { ...m, ...data } : m))} onDelete={(id) => setMaterials(prev => prev.filter(m => m.id !== id))} />}
         {activeTab === 'transactions' && <TransactionForm partners={partners} materials={materials} batches={batches.filter(b => b.status !== 'sold')} onPurchase={addPurchase} onUpdateStatus={(id, status, w) => updateBatchStatus(id, status, { weight: w })} />}
         {activeTab === 'history' && <HistoryReport transactions={transactions} partners={partners} materials={materials} batches={batches} />}
-        {activeTab === 'financial' && <FinancialLedger entries={financials} partners={partners} onStatusChange={handleFinancialStatusChange} onAddEntry={addManualFinancialEntry} />}
+        {activeTab === 'financial' && <FinancialLedger entries={financials} partners={partners} onStatusChange={handleFinancialStatusChange} onUpdateEntry={handleFinancialEntryUpdate} onAddEntry={addManualFinancialEntry} />}
       </main>
     </div>
   );
