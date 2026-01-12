@@ -33,6 +33,7 @@ const FinancialLedger: React.FC<Props> = ({ entries, partners, onStatusChange, o
     batchId: 'MANUAL',
     amount: '',
     date: new Date().toISOString().split('T')[0],
+    dueDate: new Date().toISOString().split('T')[0],
     description: ''
   });
 
@@ -40,7 +41,7 @@ const FinancialLedger: React.FC<Props> = ({ entries, partners, onStatusChange, o
   const [newTypeName, setNewTypeName] = useState('');
 
   // Column Filtering State
-  const [filterColumn, setFilterColumn] = useState<'all' | 'date' | 'partner' | 'operation' | 'batch' | 'value' | 'description'>('all');
+  const [filterColumn, setFilterColumn] = useState<'all' | 'date' | 'dueDate' | 'partner' | 'operation' | 'batch' | 'value' | 'description'>('all');
   const [filterSearch, setFilterSearch] = useState('');
 
   const filtered = useMemo(() => {
@@ -54,6 +55,7 @@ const FinancialLedger: React.FC<Props> = ({ entries, partners, onStatusChange, o
         
         switch (filterColumn) {
           case 'date': return e.date.includes(search);
+          case 'dueDate': return e.dueDate.includes(search);
           case 'partner': return partnerName.includes(search);
           case 'operation': return opLabel.includes(search);
           case 'batch': return e.batchId.toLowerCase().includes(search);
@@ -61,6 +63,7 @@ const FinancialLedger: React.FC<Props> = ({ entries, partners, onStatusChange, o
           case 'description': return e.description.toLowerCase().includes(search);
           default: return (
             e.date.includes(search) ||
+            e.dueDate.includes(search) ||
             partnerName.includes(search) ||
             opLabel.includes(search) ||
             e.batchId.toLowerCase().includes(search) ||
@@ -108,7 +111,8 @@ const FinancialLedger: React.FC<Props> = ({ entries, partners, onStatusChange, o
       ...newEntryData,
       operationType: finalOpType,
       amount: parseFloat(newEntryData.amount) || 0,
-      date: new Date(newEntryData.date).toISOString()
+      date: new Date(newEntryData.date).toISOString(),
+      dueDate: new Date(newEntryData.dueDate).toISOString()
     });
 
     setIsAddModalOpen(false);
@@ -121,6 +125,7 @@ const FinancialLedger: React.FC<Props> = ({ entries, partners, onStatusChange, o
       batchId: 'MANUAL',
       amount: '',
       date: new Date().toISOString().split('T')[0],
+      dueDate: new Date().toISOString().split('T')[0],
       description: ''
     });
   };
@@ -175,6 +180,7 @@ const FinancialLedger: React.FC<Props> = ({ entries, partners, onStatusChange, o
             >
               <option value="all">Filtrar por...</option>
               <option value="date">Data Registro</option>
+              <option value="dueDate">Vencimento</option>
               <option value="partner">Beneficiário/Pagador</option>
               <option value="description">Descrição</option>
               <option value="operation">Tipo Operação</option>
@@ -207,6 +213,7 @@ const FinancialLedger: React.FC<Props> = ({ entries, partners, onStatusChange, o
             <thead>
               <tr className="bg-slate-50 text-[10px] uppercase font-bold text-slate-500 tracking-widest border-b border-slate-100">
                 <th className="px-6 py-4">Data Registro</th>
+                <th className="px-6 py-4 text-emerald-600">Vencimento</th>
                 <th className="px-6 py-4">Beneficiário/Pagador</th>
                 <th className="px-6 py-4">Descrição</th>
                 <th className="px-6 py-4">Tipo de Operação</th>
@@ -219,7 +226,8 @@ const FinancialLedger: React.FC<Props> = ({ entries, partners, onStatusChange, o
             <tbody className="divide-y divide-slate-100">
               {filtered.map(entry => (
                 <tr key={entry.id} className="hover:bg-slate-50/50 transition">
-                  <td className="px-6 py-4 text-sm text-slate-500">{new Date(entry.date).toLocaleDateString()}</td>
+                  <td className="px-6 py-4 text-xs text-slate-500">{new Date(entry.date).toLocaleDateString()}</td>
+                  <td className="px-6 py-4 text-xs font-bold text-emerald-700">{new Date(entry.dueDate).toLocaleDateString()}</td>
                   <td className="px-6 py-4">
                     <div className="text-sm font-bold text-slate-800">
                         {entry.operationType.toLowerCase() === 'frete' 
@@ -228,7 +236,7 @@ const FinancialLedger: React.FC<Props> = ({ entries, partners, onStatusChange, o
                     </div>
                   </td>
                   <td className="px-6 py-4">
-                    <div className="text-[10px] text-slate-500 italic max-w-[200px] line-clamp-2">{entry.description}</div>
+                    <div className="text-[10px] text-slate-500 italic max-w-[150px] line-clamp-2">{entry.description}</div>
                   </td>
                   <td className="px-6 py-4">
                     <span className={`px-2 py-1 rounded-lg text-[9px] font-bold border uppercase ${getOperationTypeBadge(entry.operationType)}`}>
@@ -353,27 +361,40 @@ const FinancialLedger: React.FC<Props> = ({ entries, partners, onStatusChange, o
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase">Data Vencimento/Registro</label>
+                  <label className="text-[10px] font-bold text-slate-400 uppercase">Data Emissão/Registro</label>
                   <input 
                     type="date" 
                     required 
                     value={newEntryData.date} 
-                    onChange={e => setNewEntryData({...newEntryData, date: e.target.value})}
+                    onChange={e => {
+                        setNewEntryData({...newEntryData, date: e.target.value, dueDate: e.target.value});
+                    }}
                     className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm"
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase">Valor (R$)</label>
+                  <label className="text-[10px] font-bold text-emerald-600 uppercase">Data Vencimento</label>
                   <input 
-                    type="number" 
-                    step="0.01"
+                    type="date" 
                     required 
-                    value={newEntryData.amount} 
-                    onChange={e => setNewEntryData({...newEntryData, amount: e.target.value})}
-                    placeholder="0,00"
-                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm font-bold"
+                    value={newEntryData.dueDate} 
+                    onChange={e => setNewEntryData({...newEntryData, dueDate: e.target.value})}
+                    className="w-full p-3 bg-emerald-50 border border-emerald-200 rounded-xl outline-none text-sm font-bold"
                   />
                 </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-400 uppercase">Valor (R$)</label>
+                <input 
+                  type="number" 
+                  step="0.01"
+                  required 
+                  value={newEntryData.amount} 
+                  onChange={e => setNewEntryData({...newEntryData, amount: e.target.value})}
+                  placeholder="0,00"
+                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm font-bold"
+                />
               </div>
 
               <div className="space-y-1">
@@ -407,7 +428,7 @@ const FinancialLedger: React.FC<Props> = ({ entries, partners, onStatusChange, o
             <form onSubmit={handlePay} className="p-8 space-y-6">
               <div className="space-y-2">
                 <label className="text-sm font-bold text-slate-600 uppercase flex items-center gap-2">
-                  <Calendar className="w-4 h-4" /> Data do {paymentModal.type === 'payable' ? 'Pagamento' : 'Recebimento'}
+                  <Calendar className="w-4 h-4" /> Data do Pagamento/Recebimento Efetivo
                 </label>
                 <input 
                   type="date" 

@@ -69,8 +69,9 @@ export interface FinancialEntry {
   partnerId: string;
   batchId: string;
   amount: number;
-  date: string;
-  paymentDate?: string;
+  date: string; // Data de Registro/Emissão
+  dueDate: string; // Data de Vencimento
+  paymentDate?: string; // Data do Pagamento Efetivo
   status: 'pending' | 'paid';
   description: string;
 }

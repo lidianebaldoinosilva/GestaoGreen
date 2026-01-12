@@ -7,7 +7,7 @@ interface Props {
   partners: Partner[];
   materials: Material[];
   batches: Batch[];
-  onPurchase: (partnerId: string, materialCode: string, weight: number, pricePerKg?: number, date?: string, shipping?: ShippingInfo) => void;
+  onPurchase: (partnerId: string, materialCode: string, weight: number, pricePerKg?: number, date?: string, shipping?: ShippingInfo, dueDate?: string) => void;
   onUpdateStatus: (id: string, status: BatchStatus, weight?: number) => void;
 }
 
@@ -17,6 +17,7 @@ const TransactionForm: React.FC<Props> = ({ partners, materials, batches, onPurc
   const [pWeight, setPWeight] = useState('');
   const [pPrice, setPPrice] = useState('');
   const [pDate, setPDate] = useState(new Date().toISOString().split('T')[0]);
+  const [pDueDate, setPDueDate] = useState(new Date().toISOString().split('T')[0]);
 
   // Shipping Info States
   const [sPlate, setSPlate] = useState('');
@@ -42,12 +43,13 @@ const TransactionForm: React.FC<Props> = ({ partners, materials, batches, onPurc
         isFobOrOwn: sIsFobOrOwn
       };
 
-      onPurchase(pPartner, pMaterial, parseFloat(pWeight), pPrice ? parseFloat(pPrice) : undefined, pDate, shipping);
+      onPurchase(pPartner, pMaterial, parseFloat(pWeight), pPrice ? parseFloat(pPrice) : undefined, pDate, shipping, pDueDate);
       
       // Reset
       setPWeight('');
       setPPrice('');
       setPDate(new Date().toISOString().split('T')[0]);
+      setPDueDate(new Date().toISOString().split('T')[0]);
       setSPlate('');
       setSDriver('');
       setSCarrier('');
@@ -75,7 +77,7 @@ const TransactionForm: React.FC<Props> = ({ partners, materials, batches, onPurc
             <h4 className="text-lg font-bold text-slate-700 flex items-center gap-2">
               <ShoppingCart className="w-5 h-5 text-emerald-500" /> Dados da Mercadoria
             </h4>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
               <div className="space-y-2">
                 <label className="text-sm font-bold text-slate-600 uppercase">Data da Compra</label>
                 <div className="relative">
@@ -84,8 +86,24 @@ const TransactionForm: React.FC<Props> = ({ partners, materials, batches, onPurc
                     required 
                     type="date" 
                     value={pDate} 
-                    onChange={e => setPDate(e.target.value)} 
+                    onChange={e => {
+                        setPDate(e.target.value);
+                        setPDueDate(e.target.value); // Default due date to purchase date
+                    }} 
                     className="w-full p-3 pl-10 border border-slate-200 rounded-xl bg-slate-50"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-slate-600 uppercase text-emerald-600">Pagamento (Vencimento)</label>
+                <div className="relative">
+                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-400 w-4 h-4" />
+                  <input 
+                    required 
+                    type="date" 
+                    value={pDueDate} 
+                    onChange={e => setPDueDate(e.target.value)} 
+                    className="w-full p-3 pl-10 border border-emerald-200 rounded-xl bg-emerald-50 font-bold"
                   />
                 </div>
               </div>

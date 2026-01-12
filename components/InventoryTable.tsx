@@ -7,7 +7,7 @@ interface Props {
   batches: Batch[];
   partners: Partner[];
   materials: Material[];
-  onUpdateStatus: (id: string, status: BatchStatus, config?: { weight?: number, partnerId?: string, pricePerKg?: number, materialCode?: string, date?: string, shipping?: ShippingInfo }) => void;
+  onUpdateStatus: (id: string, status: BatchStatus, config?: { weight?: number, partnerId?: string, pricePerKg?: number, materialCode?: string, date?: string, shipping?: ShippingInfo, dueDate?: string }) => void;
   onDeleteBatch: (id: string) => void;
 }
 
@@ -24,6 +24,7 @@ const InventoryTable: React.FC<Props> = ({ batches, partners, materials, onUpdat
   const [formPrice, setFormPrice] = useState('');
   const [formMaterialCode, setFormMaterialCode] = useState('');
   const [formDate, setFormDate] = useState(new Date().toISOString().split('T')[0]);
+  const [formDueDate, setFormDueDate] = useState(new Date().toISOString().split('T')[0]);
 
   // Shipping Info States (Local to modal)
   const [sPlate, setSPlate] = useState('');
@@ -87,6 +88,7 @@ const InventoryTable: React.FC<Props> = ({ batches, partners, materials, onUpdat
 
     const config = { 
       date: formDate,
+      dueDate: formDueDate,
       weight: parseFloat(formWeight),
       materialCode: formMaterialCode,
       partnerId: formPartnerId,
@@ -115,6 +117,7 @@ const InventoryTable: React.FC<Props> = ({ batches, partners, materials, onUpdat
     setFormPartnerId('');
     setFormPrice('');
     setFormDate(new Date().toISOString().split('T')[0]);
+    setFormDueDate(new Date().toISOString().split('T')[0]);
     
     // Clear shipping
     setSPlate('');
@@ -261,17 +264,36 @@ const InventoryTable: React.FC<Props> = ({ batches, partners, materials, onUpdat
             
             <form onSubmit={handleModalSubmit} className="p-8 space-y-6 overflow-y-auto max-h-[85vh]">
               {/* Common Fields */}
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2">
-                  <Calendar className="w-3 h-3" /> Data da Operação
-                </label>
-                <input 
-                  type="date" 
-                  required 
-                  value={formDate} 
-                  onChange={e => setFormDate(e.target.value)}
-                  className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none"
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                    <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2">
+                    <Calendar className="w-3 h-3" /> Data Registro
+                    </label>
+                    <input 
+                    type="date" 
+                    required 
+                    value={formDate} 
+                    onChange={e => {
+                        setFormDate(e.target.value);
+                        setFormDueDate(e.target.value);
+                    }}
+                    className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none"
+                    />
+                </div>
+                {modalType === 'sell' && (
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-emerald-600 uppercase flex items-center gap-2">
+                      <Calendar className="w-3 h-3" /> Recebimento (Vencimento)
+                    </label>
+                    <input 
+                      type="date" 
+                      required 
+                      value={formDueDate} 
+                      onChange={e => setFormDueDate(e.target.value)}
+                      className="w-full p-4 bg-emerald-50 border-2 border-emerald-100 rounded-2xl outline-none font-bold"
+                    />
+                  </div>
+                )}
               </div>
 
               {(modalType === 'extrude_send' || modalType === 'sell') && (

@@ -115,13 +115,14 @@ const App: React.FC = () => {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const addPurchase = (partnerId: string, materialCode: string, weight: number, pricePerKg?: number, customDate?: string, shipping?: ShippingInfo) => {
+  const addPurchase = (partnerId: string, materialCode: string, weight: number, pricePerKg?: number, customDate?: string, shipping?: ShippingInfo, dueDate?: string) => {
     const partner = partners.find(p => p.id === partnerId);
     if (!partner) return;
 
     const sequence = (batches.filter(b => b.partnerId === partnerId).length + 1).toString().padStart(3, '0');
     const newBatchId = `${partner.code}/${sequence}/${materialCode}`;
     const dateToUse = customDate ? new Date(customDate).toISOString() : new Date().toISOString();
+    const dueDateToUse = dueDate ? new Date(dueDate).toISOString() : dateToUse;
     
     const newBatch: Batch = {
       id: newBatchId,
@@ -151,11 +152,12 @@ const App: React.FC = () => {
       newFinEntries.push({
         id: Math.random().toString(36).substr(2, 9),
         type: 'payable',
-        operationType: 'compra',
+        operationType: 'Compra de Matéria Prima',
         partnerId,
         batchId: newBatchId,
         amount: weight * pricePerKg,
         date: dateToUse,
+        dueDate: dueDateToUse,
         status: 'pending',
         description: `Pagamento Lote ${newBatchId} - ${partner.name}`
       });
@@ -165,11 +167,12 @@ const App: React.FC = () => {
         newFinEntries.push({
             id: Math.random().toString(36).substr(2, 9),
             type: 'payable',
-            operationType: 'frete',
+            operationType: 'Frete',
             partnerId: 'carrier-generic',
             batchId: newBatchId,
             amount: shipping.cost,
             date: dateToUse,
+            dueDate: dueDateToUse,
             status: 'pending',
             description: `Frete Lote ${newBatchId} - ${shipping.carrier || 'Transportadora'}`
         });
@@ -184,7 +187,7 @@ const App: React.FC = () => {
     setBatches(prev => prev.filter(b => b.id !== batchId));
   };
 
-  const updateBatchStatus = (batchId: string, newStatus: BatchStatus, config?: { weight?: number, partnerId?: string, pricePerKg?: number, materialCode?: string, date?: string, shipping?: ShippingInfo }) => {
+  const updateBatchStatus = (batchId: string, newStatus: BatchStatus, config?: { weight?: number, partnerId?: string, pricePerKg?: number, materialCode?: string, date?: string, shipping?: ShippingInfo, dueDate?: string }) => {
     const batch = batches.find(b => b.id === batchId);
     if (!batch) return;
 
@@ -192,6 +195,7 @@ const App: React.FC = () => {
     const dateToUse = config?.date ? new Date(config.date).toISOString() : new Date().toISOString();
     const finalWeight = config?.weight !== undefined ? config.weight : batch.weightKg;
     const finalMaterialCode = config?.materialCode || batch.materialCode;
+    const dueDateToUse = config?.dueDate ? new Date(config.dueDate).toISOString() : dateToUse;
     
     let finalBatchId = batchId;
     if (config?.materialCode && config.materialCode !== batch.materialCode) {
@@ -269,11 +273,12 @@ const App: React.FC = () => {
       newFinEntries.push({
         id: Math.random().toString(36).substr(2, 9),
         type: 'receivable',
-        operationType: 'venda',
+        operationType: 'Venda de Produto Acabado',
         partnerId: config.partnerId || '',
         batchId: finalBatchId,
         amount: batch.weightKg * config.pricePerKg,
         date: dateToUse,
+        dueDate: dueDateToUse,
         status: 'pending',
         description: `Venda Lote ${finalBatchId} - ${partner?.name}`
       });
@@ -282,11 +287,12 @@ const App: React.FC = () => {
         newFinEntries.push({
             id: Math.random().toString(36).substr(2, 9),
             type: 'payable',
-            operationType: 'frete',
+            operationType: 'Frete',
             partnerId: 'carrier-generic',
             batchId: finalBatchId,
             amount: config.shipping.cost,
             date: dateToUse,
+            dueDate: dueDateToUse,
             status: 'pending',
             description: `Frete Venda Lote ${finalBatchId} - ${config.shipping.carrier || 'Transportadora'}`
         });
