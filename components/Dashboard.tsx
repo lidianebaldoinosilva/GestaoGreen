@@ -26,7 +26,7 @@ const Dashboard: React.FC<Props> = ({ batches, materials }) => {
     }));
   }, [batches, materials]);
 
-  const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444'];
+  const COLORS = ['#0070e0', '#005bb3', '#004285', '#304050', '#607080'];
 
   return (
     <div className="space-y-6">
@@ -34,62 +34,64 @@ const Dashboard: React.FC<Props> = ({ batches, materials }) => {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
           <div className="flex items-center gap-4 mb-4">
-            <div className="bg-amber-100 p-3 rounded-full text-amber-600">
+            <div className="bg-slate-100 p-3 rounded-full text-slate-600">
               <Truck className="w-6 h-6" />
             </div>
             <div>
-              <p className="text-sm font-medium text-slate-500 uppercase">Materia Prima (Sujo)</p>
-              <h3 className="text-2xl font-bold text-slate-800">{stats.rawWeight.toLocaleString()} kg</h3>
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Materia Prima (Sujo)</p>
+              <h3 className="text-2xl font-black text-slate-800">{stats.rawWeight.toLocaleString()} kg</h3>
             </div>
           </div>
           <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
-            <div className="bg-amber-500 h-full" style={{ width: '100%' }}></div>
+            <div className="bg-slate-400 h-full" style={{ width: '100%' }}></div>
           </div>
         </div>
 
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
           <div className="flex items-center gap-4 mb-4">
-            <div className="bg-blue-100 p-3 rounded-full text-blue-600">
+            <div className="bg-brand-50 p-3 rounded-full text-brand-600">
               <Recycle className="w-6 h-6" />
             </div>
             <div>
-              <p className="text-sm font-medium text-slate-500 uppercase">Em Processamento</p>
-              <h3 className="text-2xl font-bold text-slate-800">{stats.processingWeight.toLocaleString()} kg</h3>
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Em Processamento</p>
+              <h3 className="text-2xl font-black text-slate-800">{stats.processingWeight.toLocaleString()} kg</h3>
             </div>
           </div>
           <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
-            <div className="bg-blue-500 h-full" style={{ width: '100%' }}></div>
+            <div className="bg-brand-300 h-full" style={{ width: '100%' }}></div>
           </div>
         </div>
 
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
           <div className="flex items-center gap-4 mb-4">
-            <div className="bg-emerald-100 p-3 rounded-full text-emerald-600">
+            <div className="bg-brand-600 p-3 rounded-full text-white">
               <Package className="w-6 h-6" />
             </div>
             <div>
-              <p className="text-sm font-medium text-slate-500 uppercase">Estoque Acabado</p>
-              <h3 className="text-2xl font-bold text-slate-800">{stats.finishedWeight.toLocaleString()} kg</h3>
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Estoque Acabado</p>
+              <h3 className="text-2xl font-black text-slate-800">{stats.finishedWeight.toLocaleString()} kg</h3>
             </div>
           </div>
           <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
-            <div className="bg-emerald-500 h-full" style={{ width: '100%' }}></div>
+            <div className="bg-brand-600 h-full" style={{ width: '100%' }}></div>
           </div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 gap-6">
-        {/* Charts - Expanded to full width */}
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-          <h3 className="text-lg font-semibold mb-6 text-slate-700">Volume por Tipo de Material (Kg)</h3>
+          <h3 className="text-lg font-bold mb-6 text-slate-800">Volume por Tipo de Material (Kg)</h3>
           <div className="h-[400px]">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={materialData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="name" />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="value" fill="#10b981" radius={[4, 4, 0, 0]}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                <XAxis dataKey="name" fontSize={12} tick={{fill: '#64748b'}} axisLine={false} tickLine={false} />
+                <YAxis fontSize={12} tick={{fill: '#64748b'}} axisLine={false} tickLine={false} />
+                <Tooltip 
+                  cursor={{fill: '#f8fafc'}}
+                  contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
+                />
+                <Bar dataKey="value" radius={[4, 4, 0, 0]}>
                   {materialData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}

@@ -187,6 +187,49 @@ const App: React.FC = () => {
     setBatches(prev => prev.filter(b => b.id !== batchId));
   };
 
+  const handleEditBatch = (batchId: string, updates: { weightKg: number, partnerId: string, materialCode: string }) => {
+    setBatches(prev => prev.map(b => {
+      if (b.id === batchId) {
+        const parts = b.id.split('/');
+        if (parts.length !== 3) return { ...b, ...updates };
+
+        const newPartner = partners.find(p => p.id === updates.partnerId);
+        const partnerCode = newPartner?.code || parts[0];
+        const newBatchId = `${partnerCode}/${parts[1]}/${updates.materialCode}`;
+
+        return {
+          ...b,
+          ...updates,
+          id: newBatchId,
+          updatedAt: new Date().toISOString()
+        };
+      }
+      return b;
+    }));
+    
+    setTransactions(prev => prev.map(t => {
+      if (t.batchId === batchId) {
+        const parts = batchId.split('/');
+        const newPartner = partners.find(p => p.id === updates.partnerId);
+        const partnerCode = newPartner?.code || parts[0];
+        const newBatchId = `${partnerCode}/${parts[1]}/${updates.materialCode}`;
+        return { ...t, batchId: newBatchId };
+      }
+      return t;
+    }));
+
+    setFinancials(prev => prev.map(f => {
+      if (f.batchId === batchId) {
+        const parts = batchId.split('/');
+        const newPartner = partners.find(p => p.id === updates.partnerId);
+        const partnerCode = newPartner?.code || parts[0];
+        const newBatchId = `${partnerCode}/${parts[1]}/${updates.materialCode}`;
+        return { ...f, batchId: newBatchId, partnerId: f.operationType === 'Frete' ? f.partnerId : updates.partnerId };
+      }
+      return f;
+    }));
+  };
+
   const updateBatchStatus = (batchId: string, newStatus: BatchStatus, config?: { weight?: number, partnerId?: string, pricePerKg?: number, materialCode?: string, date?: string, shipping?: ShippingInfo, dueDate?: string }) => {
     const batch = batches.find(b => b.id === batchId);
     if (!batch) return;
@@ -205,24 +248,6 @@ const App: React.FC = () => {
       }
     }
 
-    setBatches(prev => prev.map(b => {
-      if (b.id === batchId) {
-        return { 
-          ...b, 
-          id: finalBatchId,
-          status: newStatus, 
-          weightKg: finalWeight,
-          materialCode: finalMaterialCode,
-          serviceProviderId: config?.partnerId && newStatus === 'extruding' ? config.partnerId : b.serviceProviderId,
-          customerId: config?.partnerId && newStatus === 'sold' ? config.partnerId : b.customerId,
-          salePricePerKg: config?.pricePerKg || b.salePricePerKg,
-          updatedAt: dateToUse,
-          shipping: config?.shipping || b.shipping
-        };
-      }
-      return b;
-    }));
-
     const typeMapping: Record<BatchStatus, Transaction['type']> = {
       raw: 'purchase',
       processing: 'production',
@@ -235,77 +260,98 @@ const App: React.FC = () => {
     const newTxs: Transaction[] = [];
     const newFinEntries: FinancialEntry[] = [];
 
-    if ((newStatus === 'finished' || newStatus === 'extruded') && config?.weight !== undefined) {
-      const loss = originalWeight - finalWeight;
-      const matName = materials.find(m => m.code === finalMaterialCode)?.name || 'Material';
-      
-      newTxs.push({
-        id: Math.random().toString(36).substr(2, 9),
-        batchId: finalBatchId,
-        type: typeMapping[newStatus],
-        weight: finalWeight,
-        originalWeight: originalWeight,
-        date: dateToUse,
-        description: `${newStatus === 'finished' ? 'Finalização processo' : 'Retorno extrusão'} como ${matName}. Peso final: ${finalWeight}kg`
-      });
+    // Lógica Centralizada de Atualização
+    setBatches(prev => {
+        const updatedList = prev.map(b => {
+            if (b.id === batchId) {
+                if (newStatus === 'sold' && finalWeight < originalWeight) {
+                    // VENDA PARCIAL: Atualiza apenas o peso do lote original (permanece em estoque)
+                    return { ...b, weightKg: originalWeight - finalWeight, updatedAt: dateToUse };
+                }
+                // FLUXO NORMAL: Atualiza status/lote conforme o padrão
+                return { 
+                    ...b, 
+                    id: finalBatchId,
+                    status: newStatus, 
+                    weightKg: finalWeight,
+                    materialCode: finalMaterialCode,
+                    serviceProviderId: config?.partnerId && newStatus === 'extruding' ? config.partnerId : b.serviceProviderId,
+                    customerId: config?.partnerId && newStatus === 'sold' ? config.partnerId : b.customerId,
+                    salePricePerKg: config?.pricePerKg || b.salePricePerKg,
+                    updatedAt: dateToUse,
+                    shipping: config?.shipping || b.shipping
+                };
+            }
+            return b;
+        });
 
-      if (loss > 0) {
+        // Caso de Venda Parcial: Adiciona um novo registro "Sold" para o histórico
+        if (newStatus === 'sold' && finalWeight < originalWeight) {
+            const soldRecordId = `${batchId}/V-${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
+            const soldRecord: Batch = {
+                ...batch,
+                id: soldRecordId,
+                weightKg: finalWeight,
+                status: 'sold',
+                customerId: config?.partnerId,
+                salePricePerKg: config?.pricePerKg,
+                updatedAt: dateToUse,
+                shipping: config?.shipping
+            };
+            return [...updatedList, soldRecord];
+        }
+        return updatedList;
+    });
+
+    // Registra Transações e Financeiro
+    const partner = partners.find(p => p.id === (config?.partnerId || batch.customerId));
+    const isPartial = newStatus === 'sold' && finalWeight < originalWeight;
+    const effectiveBatchId = isPartial ? `${batchId}/V-PARTIAL` : finalBatchId;
+
+    if (newStatus === 'sold') {
         newTxs.push({
-          id: Math.random().toString(36).substr(2, 9),
-          batchId: finalBatchId,
-          type: 'loss',
-          weight: loss,
-          date: dateToUse,
-          description: `Perda registrada no processo (${newStatus})`
-        });
-      }
-    } else if (newStatus === 'sold' && config?.pricePerKg) {
-      const partner = partners.find(p => p.id === config.partnerId);
-      newTxs.push({
-        id: Math.random().toString(36).substr(2, 9),
-        batchId: finalBatchId,
-        type: 'sale',
-        weight: batch.weightKg,
-        date: dateToUse,
-        description: `Venda para ${partner?.name || 'Cliente'} (R$ ${config.pricePerKg}/kg)`
-      });
-
-      newFinEntries.push({
-        id: Math.random().toString(36).substr(2, 9),
-        type: 'receivable',
-        operationType: 'Venda de Produto Acabado',
-        partnerId: config.partnerId || '',
-        batchId: finalBatchId,
-        amount: batch.weightKg * config.pricePerKg,
-        date: dateToUse,
-        dueDate: dueDateToUse,
-        status: 'pending',
-        description: `Venda Lote ${finalBatchId} - ${partner?.name}`
-      });
-
-      if (config.shipping && !config.shipping.isFobOrOwn && config.shipping.cost && config.shipping.cost > 0) {
-        newFinEntries.push({
             id: Math.random().toString(36).substr(2, 9),
-            type: 'payable',
-            operationType: 'Frete',
-            partnerId: 'carrier-generic',
-            batchId: finalBatchId,
-            amount: config.shipping.cost,
+            batchId: effectiveBatchId,
+            type: 'sale',
+            weight: finalWeight,
             date: dateToUse,
-            dueDate: dueDateToUse,
-            status: 'pending',
-            description: `Frete Venda Lote ${finalBatchId} - ${config.shipping.carrier || 'Transportadora'}`
+            description: `${isPartial ? 'Venda Parcial' : 'Venda Total'} para ${partner?.name || 'Cliente'} (R$ ${config?.pricePerKg}/kg)`
         });
-      }
-    } else {
-      newTxs.push({
-        id: Math.random().toString(36).substr(2, 9),
-        batchId: finalBatchId,
-        type: typeMapping[newStatus],
-        weight: finalWeight,
-        date: dateToUse,
-        description: `Alteração de status para ${newStatus}`
-      });
+
+        if (config?.pricePerKg) {
+            newFinEntries.push({
+                id: Math.random().toString(36).substr(2, 9),
+                type: 'receivable',
+                operationType: 'Venda de Produto Acabado',
+                partnerId: config.partnerId || '',
+                batchId: effectiveBatchId,
+                amount: finalWeight * config.pricePerKg,
+                date: dateToUse,
+                dueDate: dueDateToUse,
+                status: 'pending',
+                description: `${isPartial ? 'Venda Parcial' : 'Venda'} Lote ${batchId} - ${partner?.name}`
+            });
+        }
+    } else if (newStatus === 'finished' || newStatus === 'extruded') {
+        const loss = originalWeight - finalWeight;
+        newTxs.push({
+            id: Math.random().toString(36).substr(2, 9),
+            batchId: finalBatchId,
+            type: typeMapping[newStatus],
+            weight: finalWeight,
+            date: dateToUse,
+            description: `Produção finalizada. Peso final: ${finalWeight}kg`
+        });
+        if (loss > 0) {
+            newTxs.push({
+                id: Math.random().toString(36).substr(2, 9),
+                batchId: finalBatchId,
+                type: 'loss',
+                weight: loss,
+                date: dateToUse,
+                description: `Perda registrada no processo`
+            });
+        }
     }
 
     setTransactions(prev => [...prev, ...newTxs]);
@@ -329,6 +375,10 @@ const App: React.FC = () => {
     setFinancials(prev => prev.map(f => f.id === id ? { ...f, ...updates } : f));
   };
 
+  const deleteFinancialEntry = (id: string) => {
+    setFinancials(prev => prev.filter(f => f.id !== id));
+  };
+
   const addManualFinancialEntry = (entry: Omit<FinancialEntry, 'id' | 'status'>) => {
     const newEntry: FinancialEntry = {
       ...entry,
@@ -349,10 +399,10 @@ const App: React.FC = () => {
   ];
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
-      <aside className="w-64 bg-emerald-900 text-emerald-50 hidden md:flex flex-col sticky top-0 h-screen shadow-xl">
-        <div className="p-6 flex items-center gap-3 border-b border-emerald-800">
-          <div className="bg-emerald-500 p-2 rounded-lg">
+    <div className="flex min-h-screen bg-[#f8fafc]">
+      <aside className="w-64 bg-brand-950 text-white hidden md:flex flex-col sticky top-0 h-screen shadow-xl border-r border-slate-800">
+        <div className="p-6 flex items-center gap-3 border-b border-slate-800">
+          <div className="bg-brand-600 p-2 rounded-lg shadow-lg">
             <Sprout className="w-6 h-6 text-white" />
           </div>
           <h1 className="text-xl font-bold tracking-tight">Green Reciclagem</h1>
@@ -365,34 +415,34 @@ const App: React.FC = () => {
               onClick={() => setActiveTab(item.id as any)}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
                 activeTab === item.id 
-                ? 'bg-emerald-700 text-white shadow-inner' 
-                : 'hover:bg-emerald-800 text-emerald-100'
+                ? 'bg-brand-800 text-white shadow-inner' 
+                : 'hover:bg-slate-900 text-slate-300'
               }`}
             >
-              <item.icon className="w-5 h-5" />
+              <item.icon className={`w-5 h-5 ${activeTab === item.id ? 'text-brand-300' : 'text-slate-500'}`} />
               <span className="font-medium">{item.label}</span>
             </button>
           ))}
         </nav>
 
-        <div className="p-4 border-t border-emerald-800 space-y-2">
+        <div className="p-4 border-t border-slate-800 space-y-2">
           <button 
             onClick={saveData}
-            className="w-full flex items-center gap-2 px-4 py-2 text-sm font-semibold bg-emerald-800 hover:bg-emerald-700 rounded-lg transition-colors border border-emerald-700"
+            className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold bg-slate-900 hover:bg-slate-800 text-slate-300 rounded-lg transition-colors border border-slate-700"
           >
             <Download className="w-4 h-4" /> Salvar Excel
           </button>
           <button 
             onClick={() => fileInputRef.current?.click()}
-            className="w-full flex items-center gap-2 px-4 py-2 text-sm font-semibold bg-emerald-800 hover:bg-emerald-700 rounded-lg transition-colors border border-emerald-700"
+            className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold bg-slate-900 hover:bg-slate-800 text-slate-300 rounded-lg transition-colors border border-slate-700"
           >
             <Upload className="w-4 h-4" /> Carregar Excel
           </button>
           <input type="file" ref={fileInputRef} onChange={handleLoadFile} accept=".xlsx, .xls" className="hidden" />
         </div>
 
-        <div className="p-4 border-t border-emerald-800 opacity-60 text-center">
-          <p className="text-[10px] uppercase tracking-widest font-bold">v1.4.3 &copy; 2024 Green S.A.</p>
+        <div className="p-4 border-t border-slate-800 opacity-60 text-center">
+          <p className="text-[10px] uppercase tracking-widest font-bold text-slate-500">v1.5.0 &copy; 2024 Green S.A.</p>
         </div>
       </aside>
 
@@ -402,13 +452,13 @@ const App: React.FC = () => {
             <h2 className="text-2xl font-bold text-slate-800 capitalize">
               {navItems.find(i => i.id === activeTab)?.label}
             </h2>
-            <p className="text-slate-500">Controle operacional e financeiro Green.</p>
+            <p className="text-slate-500 text-sm">Controle operacional e financeiro Green.</p>
           </div>
           
           <div className="flex items-center gap-3">
              <button 
               onClick={() => setActiveTab('transactions')}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-lg font-semibold transition shadow-sm flex items-center gap-2"
+              className="bg-brand-600 hover:bg-brand-700 text-white px-5 py-2.5 rounded-lg font-semibold transition shadow-md shadow-brand-100 flex items-center gap-2"
              >
                <ArrowLeftRight className="w-4 h-4" /> Registrar Entrada
              </button>
@@ -416,12 +466,12 @@ const App: React.FC = () => {
         </header>
 
         {activeTab === 'dashboard' && <Dashboard batches={batches} partners={partners} materials={materials} />}
-        {activeTab === 'inventory' && <InventoryTable batches={batches} partners={partners} materials={materials} onUpdateStatus={updateBatchStatus} onDeleteBatch={deleteBatch} />}
+        {activeTab === 'inventory' && <InventoryTable batches={batches} partners={partners} materials={materials} onUpdateStatus={updateBatchStatus} onDeleteBatch={deleteBatch} onEditBatch={handleEditBatch} />}
         {activeTab === 'partners' && <PartnerManager partners={partners} onAdd={(p) => setPartners([...partners, { ...p, id: Math.random().toString(36).substr(2, 9) }])} onUpdate={(id, data) => setPartners(prev => prev.map(p => p.id === id ? { ...p, ...data } : p))} onDelete={(id) => setPartners(prev => prev.filter(p => p.id !== id))} />}
         {activeTab === 'materials' && <MaterialManager materials={materials} onAdd={(m) => setMaterials([...materials, { ...m, id: Math.random().toString(36).substr(2, 9) }])} onUpdate={(id, data) => setMaterials(prev => prev.map(m => m.id === id ? { ...m, ...data } : m))} onDelete={(id) => setMaterials(prev => prev.filter(m => m.id !== id))} />}
         {activeTab === 'transactions' && <TransactionForm partners={partners} materials={materials} batches={batches.filter(b => b.status !== 'sold')} onPurchase={addPurchase} onUpdateStatus={(id, status, w) => updateBatchStatus(id, status, { weight: w })} />}
         {activeTab === 'history' && <HistoryReport transactions={transactions} partners={partners} materials={materials} batches={batches} />}
-        {activeTab === 'financial' && <FinancialLedger entries={financials} partners={partners} onStatusChange={handleFinancialStatusChange} onUpdateEntry={handleFinancialEntryUpdate} onAddEntry={addManualFinancialEntry} />}
+        {activeTab === 'financial' && <FinancialLedger entries={financials} partners={partners} onStatusChange={handleFinancialStatusChange} onUpdateEntry={handleFinancialEntryUpdate} onDeleteEntry={deleteFinancialEntry} onAddEntry={addManualFinancialEntry} />}
       </main>
     </div>
   );
