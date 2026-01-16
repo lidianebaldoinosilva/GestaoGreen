@@ -260,15 +260,17 @@ const App: React.FC = () => {
     const newTxs: Transaction[] = [];
     const newFinEntries: FinancialEntry[] = [];
 
-    // Lógica Centralizada de Atualização
+    // Lógica Centralizada de Atualização para suportar Saídas Parciais (Venda ou Extrusão)
     setBatches(prev => {
+        const isPartialStatus = (newStatus === 'sold' || newStatus === 'extruding') && finalWeight < originalWeight;
+        
         const updatedList = prev.map(b => {
             if (b.id === batchId) {
-                if (newStatus === 'sold' && finalWeight < originalWeight) {
-                    // VENDA PARCIAL: Atualiza apenas o peso do lote original (permanece em estoque)
+                if (isPartialStatus) {
+                    // SAÍDA PARCIAL: O lote original fica com o peso restante
                     return { ...b, weightKg: originalWeight - finalWeight, updatedAt: dateToUse };
                 }
-                // FLUXO NORMAL: Atualiza status/lote conforme o padrão
+                // FLUXO NORMAL: Muda o status/peso do lote inteiro
                 return { 
                     ...b, 
                     id: finalBatchId,
@@ -285,28 +287,30 @@ const App: React.FC = () => {
             return b;
         });
 
-        // Caso de Venda Parcial: Adiciona um novo registro "Sold" para o histórico
-        if (newStatus === 'sold' && finalWeight < originalWeight) {
-            const soldRecordId = `${batchId}/V-${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
-            const soldRecord: Batch = {
+        // Caso de Saída Parcial: Adiciona um novo registro para o histórico representando a parte que saiu
+        if (isPartialStatus) {
+            const suffix = newStatus === 'sold' ? 'V' : 'E';
+            const newSubBatchId = `${batchId}/${suffix}-${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
+            const newSubBatch: Batch = {
                 ...batch,
-                id: soldRecordId,
+                id: newSubBatchId,
                 weightKg: finalWeight,
-                status: 'sold',
-                customerId: config?.partnerId,
+                status: newStatus,
+                customerId: newStatus === 'sold' ? config?.partnerId : undefined,
+                serviceProviderId: newStatus === 'extruding' ? config?.partnerId : undefined,
                 salePricePerKg: config?.pricePerKg,
                 updatedAt: dateToUse,
                 shipping: config?.shipping
             };
-            return [...updatedList, soldRecord];
+            return [...updatedList, newSubBatch];
         }
         return updatedList;
     });
 
     // Registra Transações e Financeiro
-    const partner = partners.find(p => p.id === (config?.partnerId || batch.customerId));
-    const isPartial = newStatus === 'sold' && finalWeight < originalWeight;
-    const effectiveBatchId = isPartial ? `${batchId}/V-PARTIAL` : finalBatchId;
+    const partner = partners.find(p => p.id === (config?.partnerId || batch.customerId || batch.serviceProviderId));
+    const isPartial = (newStatus === 'sold' || newStatus === 'extruding') && finalWeight < originalWeight;
+    const effectiveBatchId = isPartial ? `${batchId}/PARTIAL` : finalBatchId;
 
     if (newStatus === 'sold') {
         newTxs.push({
@@ -315,7 +319,7 @@ const App: React.FC = () => {
             type: 'sale',
             weight: finalWeight,
             date: dateToUse,
-            description: `${isPartial ? 'Venda Parcial' : 'Venda Total'} para ${partner?.name || 'Cliente'} (R$ ${config?.pricePerKg}/kg)`
+            description: `${isPartial ? 'Venda Parcial' : 'Venda'} para ${partner?.name || 'Cliente'} (R$ ${config?.pricePerKg}/kg)`
         });
 
         if (config?.pricePerKg) {
@@ -332,6 +336,15 @@ const App: React.FC = () => {
                 description: `${isPartial ? 'Venda Parcial' : 'Venda'} Lote ${batchId} - ${partner?.name}`
             });
         }
+    } else if (newStatus === 'extruding') {
+        newTxs.push({
+            id: Math.random().toString(36).substr(2, 9),
+            batchId: effectiveBatchId,
+            type: 'extruding',
+            weight: finalWeight,
+            date: dateToUse,
+            description: `${isPartial ? 'Saída Parcial' : 'Saída'} para Extrusão com ${partner?.name || 'Prestador'}`
+        });
     } else if (newStatus === 'finished' || newStatus === 'extruded') {
         const loss = originalWeight - finalWeight;
         newTxs.push({
@@ -340,16 +353,16 @@ const App: React.FC = () => {
             type: typeMapping[newStatus],
             weight: finalWeight,
             date: dateToUse,
-            description: `Produção finalizada. Peso final: ${finalWeight}kg`
+            description: `${newStatus === 'finished' ? 'Prensagem finalizada' : 'Retorno da extrusora'}. Peso final: ${finalWeight}kg`
         });
-        if (loss > 0) {
+        if (loss !== 0) {
             newTxs.push({
                 id: Math.random().toString(36).substr(2, 9),
                 batchId: finalBatchId,
                 type: 'loss',
-                weight: loss,
+                weight: Math.abs(loss),
                 date: dateToUse,
-                description: `Perda registrada no processo`
+                description: `${loss > 0 ? 'Perda' : 'Ganho'} de peso registrado no processo (${newStatus})`
             });
         }
     }
