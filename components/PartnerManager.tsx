@@ -132,6 +132,7 @@ const PartnerManager: React.FC<Props> = ({ partners, onAdd, onUpdate, onDelete }
                 >
                   <option value="supplier">Fornecedor</option>
                   <option value="customer">Cliente</option>
+                  <option value="seller">Vendedor</option>
                   <option value="service_provider">Prestador de Serviço</option>
                   <option value="both">Ambos (Fornecedor e Cliente)</option>
                 </select>
@@ -214,7 +215,9 @@ const PartnerManager: React.FC<Props> = ({ partners, onAdd, onUpdate, onDelete }
               <div className="flex justify-between items-start mb-3">
                 <div className={`p-2.5 rounded-xl ${
                   p.type === 'supplier' ? 'bg-amber-50 text-amber-600' : 
-                  p.type === 'customer' ? 'bg-blue-50 text-blue-600' : 'bg-emerald-50 text-emerald-600'
+                  p.type === 'customer' ? 'bg-blue-50 text-blue-600' : 
+                  p.type === 'seller' ? 'bg-brand-50 text-brand-600' :
+                  'bg-emerald-50 text-emerald-600'
                 }`}>
                   <Building2 className="w-5 h-5" />
                 </div>
@@ -240,9 +243,10 @@ const PartnerManager: React.FC<Props> = ({ partners, onAdd, onUpdate, onDelete }
                 <span className={`text-[10px] uppercase tracking-wider font-extrabold px-2 py-0.5 rounded ${
                   p.type === 'supplier' ? 'bg-amber-100 text-amber-700' : 
                   p.type === 'customer' ? 'bg-blue-100 text-blue-700' : 
+                  p.type === 'seller' ? 'bg-brand-100 text-brand-800' :
                   p.type === 'service_provider' ? 'bg-indigo-100 text-indigo-700' : 'bg-emerald-100 text-emerald-700'
                 }`}>
-                  {p.type === 'supplier' ? 'Fornecedor' : p.type === 'customer' ? 'Cliente' : p.type === 'service_provider' ? 'Prestador' : 'Ambos'}
+                  {p.type === 'supplier' ? 'Fornecedor' : p.type === 'customer' ? 'Cliente' : p.type === 'seller' ? 'Vendedor' : p.type === 'service_provider' ? 'Prestador' : 'Ambos'}
                 </span>
               </div>
               <h4 className="font-bold text-slate-800 text-lg leading-tight">{p.name}</h4>

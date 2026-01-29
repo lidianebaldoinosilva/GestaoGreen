@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Partner, Material, Batch, Transaction, BatchStatus, FinancialEntry, ShippingInfo } from './types.ts';
+import { Partner, Material, Batch, Transaction, BatchStatus, FinancialEntry, ShippingInfo, Order } from './types.ts';
 import { INITIAL_PARTNERS, MATERIALS, INITIAL_BATCHES } from './constants.tsx';
 import Dashboard from './components/Dashboard.tsx';
 import InventoryTable from './components/InventoryTable.tsx';
@@ -9,6 +9,7 @@ import MaterialManager from './components/MaterialManager.tsx';
 import TransactionForm from './components/TransactionForm.tsx';
 import HistoryReport from './components/HistoryReport.tsx';
 import FinancialLedger from './components/FinancialLedger.tsx';
+import OrderManager from './components/OrderManager.tsx';
 import * as XLSX from 'xlsx';
 import { 
   LayoutDashboard, 
@@ -20,16 +21,18 @@ import {
   History, 
   WalletCards,
   Download,
-  Upload
+  Upload,
+  ClipboardList
 } from 'lucide-react';
 
 const App: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'inventory' | 'partners' | 'materials' | 'transactions' | 'history' | 'financial'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'inventory' | 'partners' | 'materials' | 'transactions' | 'history' | 'financial' | 'orders'>('dashboard');
   const [partners, setPartners] = useState<Partner[]>(INITIAL_PARTNERS);
   const [materials, setMaterials] = useState<Material[]>(MATERIALS);
   const [batches, setBatches] = useState<Batch[]>(INITIAL_BATCHES);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [financials, setFinancials] = useState<FinancialEntry[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -50,12 +53,18 @@ const App: React.FC = () => {
   const saveData = async () => {
     try {
       const wb = XLSX.utils.book_new();
+      
+      const ordersToSave = orders.map(o => ({
+        ...o,
+        items: JSON.stringify(o.items)
+      }));
+
       XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(batches), "Estoque");
       XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(transactions), "Movimentações");
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(transactions), "Historico");
       XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(financials), "financeiro");
       XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(partners), "parceiros");
       XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(materials), "materiais");
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(ordersToSave), "Pedidos");
 
       const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
       const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
@@ -102,8 +111,18 @@ const App: React.FC = () => {
           if (workbook.Sheets["parceiros"]) setPartners(XLSX.utils.sheet_to_json(workbook.Sheets["parceiros"]) as Partner[]);
           if (workbook.Sheets["materiais"]) setMaterials(XLSX.utils.sheet_to_json(workbook.Sheets["materiais"]) as Material[]);
           if (workbook.Sheets["Estoque"]) setBatches(XLSX.utils.sheet_to_json(workbook.Sheets["Estoque"]) as Batch[]);
-          if (workbook.Sheets["Historico"]) setTransactions(XLSX.utils.sheet_to_json(workbook.Sheets["Historico"]) as Transaction[]);
+          if (workbook.Sheets["Movimentações"]) setTransactions(XLSX.utils.sheet_to_json(workbook.Sheets["Movimentações"]) as Transaction[]);
           if (workbook.Sheets["financeiro"]) setFinancials(XLSX.utils.sheet_to_json(workbook.Sheets["financeiro"]) as FinancialEntry[]);
+          
+          if (workbook.Sheets["Pedidos"]) {
+            const rawOrders: any[] = XLSX.utils.sheet_to_json(workbook.Sheets["Pedidos"]);
+            const processedOrders = rawOrders.map(o => ({
+              ...o,
+              items: typeof o.items === 'string' ? JSON.parse(o.items) : o.items
+            }));
+            setOrders(processedOrders as Order[]);
+          }
+
           alert('Dados carregados com sucesso a partir da planilha Excel!');
         }
       } catch (err) {
@@ -183,6 +202,33 @@ const App: React.FC = () => {
     setTransactions(prev => [...prev, newTx]);
   };
 
+  const addOrder = (order: Order) => {
+    setOrders(prev => [...prev, order]);
+    
+    // Se houver vendedor e valor de comissão, gera um lançamento financeiro
+    if (order.sellerId && order.commissionAmount && order.commissionAmount > 0) {
+      const seller = partners.find(p => p.id === order.sellerId);
+      const newCommissionEntry: FinancialEntry = {
+        id: Math.random().toString(36).substr(2, 9),
+        type: 'payable',
+        operationType: 'Comissão de Vendedor',
+        partnerId: order.sellerId,
+        batchId: order.orderNumber, // Vinculamos ao número do pedido
+        amount: order.commissionAmount,
+        date: order.date,
+        dueDate: order.date, // Por padrão, vencimento na data do pedido
+        status: 'pending',
+        description: `Comissão do Pedido ${order.orderNumber} - ${seller?.name || 'Vendedor'}`
+      };
+      setFinancials(prev => [...prev, newCommissionEntry]);
+    }
+  };
+
+  const updateOrder = (id: string, updates: Partial<Order>) => {
+    setOrders(prev => prev.map(o => o.id === id ? { ...o, ...updates } : o));
+    // Nota: Em um sistema real, aqui trataríamos a atualização da comissão se o valor mudasse.
+  };
+
   const deleteBatch = (batchId: string) => {
     setBatches(prev => prev.filter(b => b.id !== batchId));
   };
@@ -260,17 +306,14 @@ const App: React.FC = () => {
     const newTxs: Transaction[] = [];
     const newFinEntries: FinancialEntry[] = [];
 
-    // Lógica Centralizada de Atualização para suportar Saídas Parciais (Venda ou Extrusão)
     setBatches(prev => {
         const isPartialStatus = (newStatus === 'sold' || newStatus === 'extruding') && finalWeight < originalWeight;
         
         const updatedList = prev.map(b => {
             if (b.id === batchId) {
                 if (isPartialStatus) {
-                    // SAÍDA PARCIAL: O lote original fica com o peso restante
                     return { ...b, weightKg: originalWeight - finalWeight, updatedAt: dateToUse };
                 }
-                // FLUXO NORMAL: Muda o status/peso do lote inteiro
                 return { 
                     ...b, 
                     id: finalBatchId,
@@ -287,7 +330,6 @@ const App: React.FC = () => {
             return b;
         });
 
-        // Caso de Saída Parcial: Adiciona um novo registro para o histórico representando a parte que saiu
         if (isPartialStatus) {
             const suffix = newStatus === 'sold' ? 'V' : 'E';
             const newSubBatchId = `${batchId}/${suffix}-${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
@@ -307,7 +349,6 @@ const App: React.FC = () => {
         return updatedList;
     });
 
-    // Registra Transações e Financeiro
     const partner = partners.find(p => p.id === (config?.partnerId || batch.customerId || batch.serviceProviderId));
     const isPartial = (newStatus === 'sold' || newStatus === 'extruding') && finalWeight < originalWeight;
     const effectiveBatchId = isPartial ? `${batchId}/PARTIAL` : finalBatchId;
@@ -404,6 +445,7 @@ const App: React.FC = () => {
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'inventory', label: 'Estoque de Lotes', icon: Boxes },
+    { id: 'orders', label: 'Pedidos', icon: ClipboardList },
     { id: 'transactions', label: 'Movimentações', icon: ArrowLeftRight },
     { id: 'history', label: 'Histórico', icon: History },
     { id: 'financial', label: 'Financeiro', icon: WalletCards },
@@ -485,6 +527,7 @@ const App: React.FC = () => {
         {activeTab === 'transactions' && <TransactionForm partners={partners} materials={materials} batches={batches.filter(b => b.status !== 'sold')} onPurchase={addPurchase} onUpdateStatus={(id, status, w) => updateBatchStatus(id, status, { weight: w })} />}
         {activeTab === 'history' && <HistoryReport transactions={transactions} partners={partners} materials={materials} batches={batches} />}
         {activeTab === 'financial' && <FinancialLedger entries={financials} partners={partners} onStatusChange={handleFinancialStatusChange} onUpdateEntry={handleFinancialEntryUpdate} onDeleteEntry={deleteFinancialEntry} onAddEntry={addManualFinancialEntry} />}
+        {activeTab === 'orders' && <OrderManager orders={orders} partners={partners} onAdd={addOrder} onUpdate={updateOrder} onDelete={(id) => setOrders(prev => prev.filter(o => o.id !== id))} />}
       </main>
     </div>
   );

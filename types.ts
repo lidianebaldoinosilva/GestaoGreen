@@ -15,7 +15,7 @@ export interface Partner {
   id: string;
   name: string;
   code: string; // 3 digits, e.g., '012'
-  type: 'supplier' | 'customer' | 'service_provider' | 'both';
+  type: 'supplier' | 'customer' | 'service_provider' | 'seller' | 'both';
   document?: string; // CPF or CNPJ
   email?: string;
   phone?: string;
@@ -65,13 +65,40 @@ export interface Transaction {
 export interface FinancialEntry {
   id: string;
   type: 'payable' | 'receivable';
-  operationType: string; // Changed from union to string to allow custom types
+  operationType: string; 
   partnerId: string;
   batchId: string;
   amount: number;
-  date: string; // Data de Registro/Emissão
-  dueDate: string; // Data de Vencimento
-  paymentDate?: string; // Data do Pagamento Efetivo
+  date: string; 
+  dueDate: string; 
+  paymentDate?: string; 
   status: 'pending' | 'paid';
   description: string;
+}
+
+export interface OrderItem {
+  id: string;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  total: number;
+}
+
+export interface Order {
+  id: string;
+  orderNumber: string;
+  date: string;
+  customerId: string;
+  sellerId?: string;
+  commissionAmount?: number;
+  isFob?: boolean; // true = FOB, false = CIF
+  cnpj?: string;
+  ie?: string;
+  address?: string;
+  phone?: string;
+  items: OrderItem[];
+  totalAmount: number;
+  pixKey: string;
+  status: 'pending' | 'confirmed' | 'delivered' | 'cancelled';
+  notes?: string;
 }

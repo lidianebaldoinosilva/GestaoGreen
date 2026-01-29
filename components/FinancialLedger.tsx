@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { FinancialEntry, Partner } from '../types.ts';
-import { DollarSign, ArrowUpCircle, ArrowDownCircle, CheckCircle2, Clock, Calendar, X, Tag, Plus, Filter, Search, PlusCircle, Edit, Trash2 } from 'lucide-react';
+import { DollarSign, ArrowUpCircle, ArrowDownCircle, CheckCircle2, Clock, Calendar, X, Tag, Plus, Filter, Search, PlusCircle, Edit, Trash2, UserCheck } from 'lucide-react';
 
 interface Props {
   entries: FinancialEntry[];
@@ -13,7 +13,7 @@ interface Props {
 }
 
 const FinancialLedger: React.FC<Props> = ({ entries, partners, onStatusChange, onUpdateEntry, onDeleteEntry, onAddEntry }) => {
-  const [filterType, setFilterType] = useState<'all' | 'payable' | 'receivable'>('all');
+  const [filterType, setFilterType] = useState<'all' | 'payable' | 'receivable' | 'commission'>('all');
   const [paymentModal, setPaymentModal] = useState<{ id: string, type: string } | null>(null);
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
   
@@ -25,6 +25,7 @@ const FinancialLedger: React.FC<Props> = ({ entries, partners, onStatusChange, o
     'Compra de Matéria Prima',
     'Venda de Produto Acabado',
     'Frete',
+    'Comissão de Vendedor',
     'Prestação de Serviço',
     'Outros'
   ]);
@@ -48,7 +49,10 @@ const FinancialLedger: React.FC<Props> = ({ entries, partners, onStatusChange, o
   const [filterSearch, setFilterSearch] = useState('');
 
   const filtered = useMemo(() => {
-    let result = entries.filter(e => filterType === 'all' || e.type === filterType);
+    let result = entries;
+    if (filterType === 'payable') result = result.filter(e => e.type === 'payable' && e.operationType !== 'Comissão de Vendedor');
+    if (filterType === 'receivable') result = result.filter(e => e.type === 'receivable');
+    if (filterType === 'commission') result = result.filter(e => e.operationType === 'Comissão de Vendedor');
     
     if (filterSearch) {
       const search = filterSearch.toLowerCase();
@@ -83,10 +87,13 @@ const FinancialLedger: React.FC<Props> = ({ entries, partners, onStatusChange, o
   const totals = useMemo(() => {
     return {
       payable: entries
-        .filter(e => e.type === 'payable' && e.status === 'pending')
+        .filter(e => e.type === 'payable' && e.status === 'pending' && e.operationType !== 'Comissão de Vendedor')
         .reduce((acc, curr) => acc + curr.amount, 0),
       receivable: entries
         .filter(e => e.type === 'receivable' && e.status === 'pending')
+        .reduce((acc, curr) => acc + curr.amount, 0),
+      commissions: entries
+        .filter(e => e.operationType === 'Comissão de Vendedor' && e.status === 'pending')
         .reduce((acc, curr) => acc + curr.amount, 0)
     };
   }, [entries]);
@@ -158,7 +165,7 @@ const FinancialLedger: React.FC<Props> = ({ entries, partners, onStatusChange, o
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
           <div className="flex items-center gap-4 mb-2">
             <div className="bg-slate-100 p-3 rounded-full text-slate-500"><ArrowUpCircle className="w-6 h-6" /></div>
@@ -174,6 +181,15 @@ const FinancialLedger: React.FC<Props> = ({ entries, partners, onStatusChange, o
             <div>
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Contas a Receber</p>
               <h3 className="text-2xl font-black text-brand-800">R$ {totals.receivable.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
+            </div>
+          </div>
+        </div>
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+          <div className="flex items-center gap-4 mb-2">
+            <div className="bg-indigo-50 p-3 rounded-full text-indigo-600"><UserCheck className="w-6 h-6" /></div>
+            <div>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Comissões a Pagar</p>
+              <h3 className="text-2xl font-black text-indigo-800">R$ {totals.commissions.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
             </div>
           </div>
         </div>
@@ -197,6 +213,7 @@ const FinancialLedger: React.FC<Props> = ({ entries, partners, onStatusChange, o
             >
               <option value="all">Filtrar por...</option>
               <option value="partner">Parceiro</option>
+              <option value="operation">Operação</option>
               <option value="value">Valor</option>
             </select>
           </div>
@@ -218,6 +235,7 @@ const FinancialLedger: React.FC<Props> = ({ entries, partners, onStatusChange, o
           <button onClick={() => setFilterType('all')} className={`px-5 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition ${filterType === 'all' ? 'bg-brand-950 text-white shadow-lg' : 'bg-slate-100 text-slate-500'}`}>Tudo</button>
           <button onClick={() => setFilterType('payable')} className={`px-5 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition ${filterType === 'payable' ? 'bg-slate-600 text-white' : 'bg-slate-50 text-slate-500'}`}>Pagar</button>
           <button onClick={() => setFilterType('receivable')} className={`px-5 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition ${filterType === 'receivable' ? 'bg-brand-600 text-white' : 'bg-brand-50 text-brand-600'}`}>Receber</button>
+          <button onClick={() => setFilterType('commission')} className={`px-5 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition ${filterType === 'commission' ? 'bg-indigo-600 text-white shadow-lg' : 'bg-indigo-50 text-indigo-400'}`}>Comissões</button>
         </div>
 
         <div className="overflow-x-auto">
@@ -227,6 +245,7 @@ const FinancialLedger: React.FC<Props> = ({ entries, partners, onStatusChange, o
                 <th className="px-6 py-4">Registro</th>
                 <th className="px-6 py-4">Vencimento</th>
                 <th className="px-6 py-4">Parceiro</th>
+                <th className="px-6 py-4">Operação</th>
                 <th className="px-6 py-4 text-right">Valor</th>
                 <th className="px-6 py-4">Status</th>
                 <th className="px-6 py-4 text-center">Ações</th>
@@ -241,6 +260,11 @@ const FinancialLedger: React.FC<Props> = ({ entries, partners, onStatusChange, o
                     <div className="text-sm font-bold text-slate-800">
                         {partners.find(p => p.id === entry.partnerId)?.name || 'N/A'}
                     </div>
+                  </td>
+                  <td className="px-6 py-4">
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${entry.operationType === 'Comissão de Vendedor' ? 'bg-indigo-50 text-indigo-700' : 'bg-slate-100 text-slate-500'}`}>
+                        {entry.operationType}
+                      </span>
                   </td>
                   <td className={`px-6 py-4 text-right font-black ${entry.type === 'payable' ? 'text-red-600' : 'text-emerald-600'}`}>
                     R$ {entry.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
@@ -271,7 +295,6 @@ const FinancialLedger: React.FC<Props> = ({ entries, partners, onStatusChange, o
         </div>
       </div>
 
-      {/* Modal de Liquidação */}
       {paymentModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden animate-in zoom-in duration-200">
@@ -291,7 +314,7 @@ const FinancialLedger: React.FC<Props> = ({ entries, partners, onStatusChange, o
                 />
               </div>
               <p className="text-sm text-slate-500">
-                Confirmar que este valor foi {paymentModal.type === 'payable' ? 'pago' : 'recebido'} integralmente?
+                Confirmar que este valor foi liquidado integralmente?
               </p>
               <button type="submit" className="w-full py-4 bg-brand-600 text-white rounded-2xl font-black uppercase tracking-widest hover:bg-brand-700 shadow-xl shadow-brand-100 transition">
                 Confirmar Liquidação
@@ -301,7 +324,6 @@ const FinancialLedger: React.FC<Props> = ({ entries, partners, onStatusChange, o
         </div>
       )}
 
-      {/* Modal de Adição Manual */}
       {isAddModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in duration-200">
@@ -404,7 +426,6 @@ const FinancialLedger: React.FC<Props> = ({ entries, partners, onStatusChange, o
         </div>
       )}
 
-      {/* Modal de Edição */}
       {editModalEntry && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden animate-in zoom-in duration-200">
