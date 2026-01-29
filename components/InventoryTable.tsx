@@ -1,18 +1,30 @@
 
 import React, { useState } from 'react';
-import { Batch, Partner, Material, BatchStatus, ShippingInfo } from '../types.ts';
-import { Search, CheckCircle2, Factory, ArrowRight, X, Scale, AlertTriangle, Truck, ShoppingCart, RefreshCw, Filter, Calendar, Trash2, Edit2, Info } from 'lucide-react';
+import { Batch, Partner, Material, BatchStatus, ShippingInfo, Order } from '../types.ts';
+import { Search, CheckCircle2, Factory, ArrowRight, X, Scale, AlertTriangle, Truck, ShoppingCart, RefreshCw, Filter, Calendar, Trash2, Edit2, Info, Link as LinkIcon, CheckSquare } from 'lucide-react';
 
 interface Props {
   batches: Batch[];
   partners: Partner[];
   materials: Material[];
-  onUpdateStatus: (id: string, status: BatchStatus, config?: { weight?: number, partnerId?: string, pricePerKg?: number, materialCode?: string, date?: string, shipping?: ShippingInfo, dueDate?: string }) => void;
+  orders: Order[];
+  onUpdateStatus: (id: string, status: BatchStatus, config?: { 
+    weight?: number, 
+    partnerId?: string, 
+    pricePerKg?: number, 
+    materialCode?: string, 
+    date?: string, 
+    shipping?: ShippingInfo, 
+    dueDate?: string,
+    orderId?: string,
+    orderItemId?: string,
+    finalizeOrder?: boolean
+  }) => void;
   onDeleteBatch: (id: string) => void;
   onEditBatch: (id: string, updates: { weightKg: number, partnerId: string, materialCode: string }) => void;
 }
 
-const InventoryTable: React.FC<Props> = ({ batches, partners, materials, onUpdateStatus, onDeleteBatch, onEditBatch }) => {
+const InventoryTable: React.FC<Props> = ({ batches, partners, materials, orders, onUpdateStatus, onDeleteBatch, onEditBatch }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterPartnerId, setFilterPartnerId] = useState('all');
   const [filterMaterialCode, setFilterMaterialCode] = useState('all');
@@ -26,6 +38,11 @@ const InventoryTable: React.FC<Props> = ({ batches, partners, materials, onUpdat
   const [formMaterialCode, setFormMaterialCode] = useState('');
   const [formDate, setFormDate] = useState(new Date().toISOString().split('T')[0]);
   const [formDueDate, setFormDueDate] = useState(new Date().toISOString().split('T')[0]);
+
+  // Novas states para vínculo com pedido
+  const [selectedOrderId, setSelectedOrderId] = useState('');
+  const [selectedOrderItemId, setSelectedOrderItemId] = useState('');
+  const [finalizeOrderManually, setFinalizeOrderManually] = useState(false);
 
   const [sPlate, setSPlate] = useState('');
   const [sDriver, setSDriver] = useState('');
@@ -114,7 +131,10 @@ const InventoryTable: React.FC<Props> = ({ batches, partners, materials, onUpdat
       materialCode: formMaterialCode,
       partnerId: formPartnerId,
       pricePerKg: parseFloat(formPrice),
-      shipping
+      shipping,
+      orderId: selectedOrderId,
+      orderItemId: selectedOrderItemId,
+      finalizeOrder: finalizeOrderManually
     };
 
     const nextStatusMap: Record<string, BatchStatus> = {
@@ -138,6 +158,11 @@ const InventoryTable: React.FC<Props> = ({ batches, partners, materials, onUpdat
     setFormDate(new Date().toISOString().split('T')[0]);
     setFormDueDate(new Date().toISOString().split('T')[0]);
     
+    // Reset de campos de pedido
+    setSelectedOrderId('');
+    setSelectedOrderItemId('');
+    setFinalizeOrderManually(false);
+
     setSPlate('');
     setSDriver('');
     setSCarrier('');
@@ -154,11 +179,15 @@ const InventoryTable: React.FC<Props> = ({ batches, partners, materials, onUpdat
   };
 
   const isPartialOutput = activeBatch && (modalType === 'sell' || modalType === 'extrude_send') && parseFloat(formWeight) < activeBatch.weightKg;
-  
-  // Cálculo de Perda para o modal de finalização ou retorno de extrusão
   const isLossCalculation = activeBatch && (modalType === 'finalize' || modalType === 'extrude_return');
   const currentLoss = activeBatch && isLossCalculation ? activeBatch.weightKg - parseFloat(formWeight || '0') : 0;
   const lossPercentage = activeBatch && isLossCalculation ? (currentLoss / activeBatch.weightKg) * 100 : 0;
+
+  // Filtragem de pedidos para o cliente selecionado
+  const availableOrders = orders.filter(o => 
+    o.customerId === formPartnerId && (o.status === 'pending' || o.status === 'confirmed')
+  );
+  const selectedOrder = orders.find(o => o.id === selectedOrderId);
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
@@ -268,8 +297,8 @@ const InventoryTable: React.FC<Props> = ({ batches, partners, materials, onUpdat
       </div>
 
       {modalType && activeBatch && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in duration-200 border border-slate-200">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in duration-200 border border-slate-200 my-8">
             <div className="bg-[#000814] p-6 text-white flex justify-between items-center">
               <h3 className="text-xl font-bold flex items-center gap-2">
                 {modalType === 'sell' && <ShoppingCart className="w-5 h-5 text-brand-400" />}
@@ -288,7 +317,7 @@ const InventoryTable: React.FC<Props> = ({ batches, partners, materials, onUpdat
               <button onClick={resetModal} className="p-1 hover:bg-white/10 rounded-full transition"><X className="w-6 h-6" /></button>
             </div>
             
-            <form onSubmit={handleModalSubmit} className="p-8 space-y-6 max-h-[80vh] overflow-y-auto">
+            <form onSubmit={handleModalSubmit} className="p-8 space-y-6 max-h-[75vh] overflow-y-auto">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1">
@@ -318,7 +347,6 @@ const InventoryTable: React.FC<Props> = ({ batches, partners, materials, onUpdat
                 )}
               </div>
 
-              {/* Seção de Seleção de Parceiro (Cliente ou Prestador) */}
               {(modalType === 'sell' || modalType === 'extrude_send') && (
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
@@ -327,7 +355,11 @@ const InventoryTable: React.FC<Props> = ({ batches, partners, materials, onUpdat
                   <select 
                     required 
                     value={formPartnerId} 
-                    onChange={e => setFormPartnerId(e.target.value)}
+                    onChange={e => {
+                        setFormPartnerId(e.target.value);
+                        setSelectedOrderId('');
+                        setSelectedOrderItemId('');
+                    }}
                     className="w-full p-3 border border-slate-200 rounded-xl bg-slate-50 text-slate-700 focus:border-brand-500 outline-none transition"
                   >
                     <option value="">Selecione o Parceiro...</option>
@@ -342,7 +374,67 @@ const InventoryTable: React.FC<Props> = ({ batches, partners, materials, onUpdat
                 </div>
               )}
 
-              {/* Seção de Peso para Saídas (Venda ou Envio Extrusão) */}
+              {/* Seção de Vínculo com Pedido (Apenas na Venda) */}
+              {modalType === 'sell' && formPartnerId && (
+                <div className="p-4 bg-brand-50 rounded-2xl border border-brand-100 space-y-4">
+                  <h4 className="text-[10px] font-black uppercase text-brand-600 flex items-center gap-2">
+                    <LinkIcon className="w-3 h-3" /> Vínculo com Pedido (Baixa Automática)
+                  </h4>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase">Número do Pedido</label>
+                      <select 
+                        value={selectedOrderId} 
+                        onChange={e => {
+                            setSelectedOrderId(e.target.value);
+                            setSelectedOrderItemId('');
+                        }}
+                        className="w-full p-2.5 text-xs bg-white border border-brand-200 rounded-lg outline-none"
+                      >
+                        <option value="">Venda Direta (Sem Pedido)</option>
+                        {availableOrders.map(o => (
+                          <option key={o.id} value={o.id}>{o.orderNumber} ({new Date(o.date).toLocaleDateString()})</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase">Item do Pedido</label>
+                      <select 
+                        required={!!selectedOrderId}
+                        value={selectedOrderItemId} 
+                        onChange={e => setSelectedOrderItemId(e.target.value)}
+                        disabled={!selectedOrderId}
+                        className="w-full p-2.5 text-xs bg-white border border-brand-200 rounded-lg outline-none disabled:opacity-50"
+                      >
+                        <option value="">Selecione o Item...</option>
+                        {selectedOrder?.items.map(item => (
+                          <option key={item.id} value={item.id}>
+                            {item.description} (Falta {(item.quantity - (item.deliveredQuantity || 0)).toLocaleString()} kg)
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {selectedOrderId && (
+                    <div className="flex items-center gap-3 bg-white p-3 rounded-xl border border-brand-200">
+                       <input 
+                         type="checkbox" 
+                         id="forceFinalize"
+                         checked={finalizeOrderManually}
+                         onChange={e => setFinalizeOrderManually(e.target.checked)}
+                         className="w-4 h-4 text-brand-600 rounded"
+                       />
+                       <label htmlFor="forceFinalize" className="text-[10px] font-bold text-slate-600 uppercase flex items-center gap-1 cursor-pointer">
+                         <CheckSquare className="w-3 h-3" /> Finalizar Pedido (Mesmo se entrega for parcial)
+                       </label>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {(modalType === 'sell' || modalType === 'extrude_send') && (
                 <div className="space-y-4">
                     <div className="space-y-1">
@@ -371,11 +463,6 @@ const InventoryTable: React.FC<Props> = ({ batches, partners, materials, onUpdat
                                 </div>
                             )}
                         </div>
-                        {isPartialOutput && (
-                            <div className="bg-amber-50/50 p-2 rounded-lg border border-amber-100 text-[10px] text-amber-800 font-medium italic mt-2">
-                                Nota: Lote original permanecerá no estoque com {(activeBatch.weightKg - parseFloat(formWeight)).toLocaleString()} kg.
-                            </div>
-                        )}
                     </div>
 
                     {modalType === 'sell' && (
@@ -404,7 +491,6 @@ const InventoryTable: React.FC<Props> = ({ batches, partners, materials, onUpdat
                 </div>
               )}
 
-              {/* Seção de Retorno / Finalização (Cálculo de Perda) */}
               {isLossCalculation && (
                 <div className="space-y-6">
                   <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 flex justify-between items-center">

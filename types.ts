@@ -80,6 +80,7 @@ export interface OrderItem {
   id: string;
   description: string;
   quantity: number;
+  deliveredQuantity: number; // New: tracking how much was already sold/shipped
   unitPrice: number;
   total: number;
 }

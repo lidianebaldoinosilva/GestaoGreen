@@ -71,6 +71,7 @@ const OrderManager: React.FC<Props> = ({ orders, partners, onAdd, onUpdate, onDe
       id: Math.random().toString(36).substr(2, 9),
       description: newItem.description,
       quantity: qty,
+      deliveredQuantity: 0,
       unitPrice: up,
       total: qty * up
     };
@@ -181,6 +182,10 @@ const OrderManager: React.FC<Props> = ({ orders, partners, onAdd, onUpdate, onDe
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredOrders.map(order => {
           const customer = partners.find(p => p.id === order.customerId);
+          const totalOrdered = order.items.reduce((acc, i) => acc + i.quantity, 0);
+          const totalDelivered = order.items.reduce((acc, i) => acc + (i.deliveredQuantity || 0), 0);
+          const progress = totalOrdered > 0 ? (totalDelivered / totalOrdered) * 100 : 0;
+
           return (
             <div key={order.id} className="bg-white rounded-2xl shadow-sm border border-slate-200 hover:shadow-md transition group overflow-hidden">
               <div className="p-5 border-b border-slate-100 flex justify-between items-center">
@@ -192,16 +197,19 @@ const OrderManager: React.FC<Props> = ({ orders, partners, onAdd, onUpdate, onDe
                     <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase border ${getStatusStyle(order.status)}`}>
                         {order.status}
                     </span>
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase border ${order.isFob ? 'bg-indigo-50 text-indigo-700' : 'bg-brand-50 text-brand-700'}`}>
-                        {order.isFob ? 'FOB' : 'CIF'}
-                    </span>
                 </div>
               </div>
               <div className="p-5">
                 <h4 className="font-bold text-slate-800 truncate">{customer?.name || 'Cliente N/A'}</h4>
-                <p className="text-[10px] text-slate-400 font-bold uppercase mt-1">
-                  Vendedor: {partners.find(p => p.id === order.sellerId)?.name || 'N/D'}
-                </p>
+                <div className="mt-3 space-y-1">
+                   <div className="flex justify-between items-center text-[10px] font-bold text-slate-400 uppercase">
+                      <span>Atendimento</span>
+                      <span>{Math.round(progress)}%</span>
+                   </div>
+                   <div className="w-full bg-slate-100 h-1 rounded-full overflow-hidden">
+                      <div className="bg-emerald-500 h-full transition-all duration-500" style={{ width: `${progress}%` }} />
+                   </div>
+                </div>
                 <div className="mt-4 flex justify-between items-end">
                   <div>
                     <p className="text-[10px] font-bold text-slate-400 uppercase">Total</p>
@@ -278,10 +286,6 @@ const OrderManager: React.FC<Props> = ({ orders, partners, onAdd, onUpdate, onDe
                       <p className="text-[10px] font-bold text-slate-400 uppercase">Localidade / Data</p>
                       <p className="font-bold text-slate-800">Santa Isabel, {new Date(viewOrder.date).toLocaleDateString('pt-BR')}</p>
                     </div>
-                    <div className="bg-white border border-slate-200 px-3 py-1 rounded text-center">
-                      <p className="text-[8px] font-black uppercase text-slate-400">Frete</p>
-                      <p className="text-xs font-black text-brand-700">{viewOrder.isFob ? 'FOB' : 'CIF'}</p>
-                    </div>
                  </div>
                  <div className="bg-brand-950 text-white px-6 py-2 rounded font-black uppercase tracking-widest">
                    Pedido
@@ -302,15 +306,16 @@ const OrderManager: React.FC<Props> = ({ orders, partners, onAdd, onUpdate, onDe
                   <p className="font-bold text-slate-800">{viewOrder.address || '---'}</p>
                 </div>
                 <div className="border-b border-slate-300 pb-1">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Vendedor:</span>
-                  <p className="font-bold text-slate-800">{partners.find(p => p.id === viewOrder.sellerId)?.name || 'N/D'}</p>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Telefone:</span>
+                  <p className="font-bold text-slate-800">{viewOrder.phone || '---'}</p>
                 </div>
               </div>
 
               <table className="w-full border-collapse mb-auto">
                 <thead>
                   <tr className="bg-brand-50">
-                    <th className="border-2 border-slate-800 p-2 text-xs font-black uppercase w-20">Quantidade</th>
+                    <th className="border-2 border-slate-800 p-2 text-xs font-black uppercase w-24">Quant.</th>
+                    <th className="border-2 border-slate-800 p-2 text-xs font-black uppercase w-24">Entregue</th>
                     <th className="border-2 border-slate-800 p-2 text-xs font-black uppercase">Produto</th>
                     <th className="border-2 border-slate-800 p-2 text-xs font-black uppercase w-32">Unitário</th>
                     <th className="border-2 border-slate-800 p-2 text-xs font-black uppercase w-32">Total</th>
@@ -320,6 +325,9 @@ const OrderManager: React.FC<Props> = ({ orders, partners, onAdd, onUpdate, onDe
                   {viewOrder.items.map((item, idx) => (
                     <tr key={idx}>
                       <td className="border-2 border-slate-800 p-3 text-center font-bold">{item.quantity}</td>
+                      <td className={`border-2 border-slate-800 p-3 text-center font-black ${item.deliveredQuantity >= item.quantity ? 'text-emerald-600' : 'text-amber-600'}`}>
+                        {item.deliveredQuantity || 0}
+                      </td>
                       <td className="border-2 border-slate-800 p-3 font-medium uppercase">{item.description}</td>
                       <td className="border-2 border-slate-800 p-3 text-right">R$ {item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                       <td className="border-2 border-slate-800 p-3 text-right font-black">R$ {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
@@ -331,12 +339,13 @@ const OrderManager: React.FC<Props> = ({ orders, partners, onAdd, onUpdate, onDe
                       <td className="border-2 border-slate-800 p-3 h-10"></td>
                       <td className="border-2 border-slate-800 p-3 h-10"></td>
                       <td className="border-2 border-slate-800 p-3 h-10"></td>
+                      <td className="border-2 border-slate-800 p-3 h-10"></td>
                     </tr>
                   ))}
                 </tbody>
                 <tfoot>
                   <tr>
-                    <td colSpan={3} className="border-2 border-slate-800 p-4 text-right font-black uppercase tracking-widest text-lg">Total do Pedido</td>
+                    <td colSpan={4} className="border-2 border-slate-800 p-4 text-right font-black uppercase tracking-widest text-lg">Total do Pedido</td>
                     <td className="border-2 border-slate-800 p-4 text-right font-black text-xl text-brand-700">R$ {viewOrder.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                   </tr>
                 </tfoot>
@@ -397,7 +406,7 @@ const OrderManager: React.FC<Props> = ({ orders, partners, onAdd, onUpdate, onDe
                     onChange={e => handleCustomerChange(e.target.value)}
                     className="w-full p-3 border border-slate-200 rounded-xl bg-slate-50 font-bold"
                   >
-                    <option value="">Selecione o Cliente...</option>
+                    <option value="">Selecione...</option>
                     {partners.filter(p => p.type === 'customer' || p.type === 'both').map(p => (
                       <option key={p.id} value={p.id}>{p.name}</option>
                     ))}
@@ -453,37 +462,6 @@ const OrderManager: React.FC<Props> = ({ orders, partners, onAdd, onUpdate, onDe
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black uppercase text-slate-400">CNPJ / IE</label>
-                  <input 
-                    type="text" 
-                    value={formData.cnpj} 
-                    onChange={e => setFormData({...formData, cnpj: e.target.value})}
-                    className="w-full p-3 border border-slate-200 rounded-xl bg-slate-50"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black uppercase text-slate-400">Telefone</label>
-                  <input 
-                    type="text" 
-                    value={formData.phone} 
-                    onChange={e => setFormData({...formData, phone: e.target.value})}
-                    className="w-full p-3 border border-slate-200 rounded-xl bg-slate-50"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-black uppercase text-slate-400">Endereço de Entrega</label>
-                <input 
-                  type="text" 
-                  value={formData.address} 
-                  onChange={e => setFormData({...formData, address: e.target.value})}
-                  className="w-full p-3 border border-slate-200 rounded-xl bg-slate-50"
-                />
-              </div>
-
               <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200">
                 <h4 className="text-xs font-black uppercase text-slate-500 mb-4 tracking-widest">Itens do Pedido</h4>
                 
@@ -532,6 +510,7 @@ const OrderManager: React.FC<Props> = ({ orders, partners, onAdd, onUpdate, onDe
                     <thead>
                       <tr className="text-[10px] uppercase font-bold text-slate-400 border-b border-slate-200">
                         <th className="px-4 py-2 text-left">Qtd</th>
+                        <th className="px-4 py-2 text-left">Entregue</th>
                         <th className="px-4 py-2 text-left">Produto</th>
                         <th className="px-4 py-2 text-right">Unitário</th>
                         <th className="px-4 py-2 text-right">Total</th>
@@ -542,11 +521,12 @@ const OrderManager: React.FC<Props> = ({ orders, partners, onAdd, onUpdate, onDe
                       {formData.items.map(item => (
                         <tr key={item.id} className="text-sm">
                           <td className="px-4 py-3 font-bold">{item.quantity}</td>
+                          <td className="px-4 py-3 font-black text-amber-600">{item.deliveredQuantity || 0}</td>
                           <td className="px-4 py-3 uppercase">{item.description}</td>
                           <td className="px-4 py-3 text-right">R$ {item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                           <td className="px-4 py-3 text-right font-black">R$ {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                           <td className="px-4 py-3">
-                            <button onClick={() => removeItem(item.id)} className="text-red-400 hover:text-red-600 transition">
+                            <button onClick={() => removeItem(item.id)} className="text-red-400 hover:text-red-600 transition" disabled={item.deliveredQuantity > 0}>
                               <Trash2 className="w-4 h-4" />
                             </button>
                           </td>
@@ -555,7 +535,7 @@ const OrderManager: React.FC<Props> = ({ orders, partners, onAdd, onUpdate, onDe
                     </tbody>
                     <tfoot>
                       <tr className="bg-slate-100">
-                        <td colSpan={3} className="px-4 py-4 text-right font-black uppercase text-slate-500">Total Geral</td>
+                        <td colSpan={4} className="px-4 py-4 text-right font-black uppercase text-slate-500">Total Geral</td>
                         <td className="px-4 py-4 text-right font-black text-brand-700 text-lg">R$ {formData.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                         <td></td>
                       </tr>

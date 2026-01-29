@@ -226,7 +226,6 @@ const App: React.FC = () => {
 
   const updateOrder = (id: string, updates: Partial<Order>) => {
     setOrders(prev => prev.map(o => o.id === id ? { ...o, ...updates } : o));
-    // Nota: Em um sistema real, aqui trataríamos a atualização da comissão se o valor mudasse.
   };
 
   const deleteBatch = (batchId: string) => {
@@ -276,7 +275,18 @@ const App: React.FC = () => {
     }));
   };
 
-  const updateBatchStatus = (batchId: string, newStatus: BatchStatus, config?: { weight?: number, partnerId?: string, pricePerKg?: number, materialCode?: string, date?: string, shipping?: ShippingInfo, dueDate?: string }) => {
+  const updateBatchStatus = (batchId: string, newStatus: BatchStatus, config?: { 
+    weight?: number, 
+    partnerId?: string, 
+    pricePerKg?: number, 
+    materialCode?: string, 
+    date?: string, 
+    shipping?: ShippingInfo, 
+    dueDate?: string,
+    orderId?: string,
+    orderItemId?: string,
+    finalizeOrder?: boolean
+  }) => {
     const batch = batches.find(b => b.id === batchId);
     if (!batch) return;
 
@@ -305,6 +315,27 @@ const App: React.FC = () => {
 
     const newTxs: Transaction[] = [];
     const newFinEntries: FinancialEntry[] = [];
+
+    // Se houver vínculo com pedido, atualiza o pedido
+    if (newStatus === 'sold' && config?.orderId && config?.orderItemId) {
+        setOrders(prev => prev.map(o => {
+            if (o.id === config.orderId) {
+                const updatedItems = o.items.map(item => {
+                    if (item.id === config.orderItemId) {
+                        return { ...item, deliveredQuantity: (item.deliveredQuantity || 0) + finalWeight };
+                    }
+                    return item;
+                });
+                
+                // Verifica se todos os itens foram atendidos ou se o usuário forçou a finalização
+                const allDelivered = updatedItems.every(item => item.deliveredQuantity >= item.quantity);
+                const nextStatus = (config.finalizeOrder || allDelivered) ? 'delivered' : 'confirmed';
+                
+                return { ...o, items: updatedItems, status: nextStatus };
+            }
+            return o;
+        }));
+    }
 
     setBatches(prev => {
         const isPartialStatus = (newStatus === 'sold' || newStatus === 'extruding') && finalWeight < originalWeight;
@@ -360,7 +391,7 @@ const App: React.FC = () => {
             type: 'sale',
             weight: finalWeight,
             date: dateToUse,
-            description: `${isPartial ? 'Venda Parcial' : 'Venda'} para ${partner?.name || 'Cliente'} (R$ ${config?.pricePerKg}/kg)`
+            description: `${isPartial ? 'Venda Parcial' : 'Venda'} para ${partner?.name || 'Cliente'} (R$ ${config?.pricePerKg}/kg)` + (config?.orderId ? ` - Vinculada ao Pedido` : '')
         });
 
         if (config?.pricePerKg) {
@@ -521,7 +552,7 @@ const App: React.FC = () => {
         </header>
 
         {activeTab === 'dashboard' && <Dashboard batches={batches} partners={partners} materials={materials} />}
-        {activeTab === 'inventory' && <InventoryTable batches={batches} partners={partners} materials={materials} onUpdateStatus={updateBatchStatus} onDeleteBatch={deleteBatch} onEditBatch={handleEditBatch} />}
+        {activeTab === 'inventory' && <InventoryTable batches={batches} partners={partners} materials={materials} orders={orders} onUpdateStatus={updateBatchStatus} onDeleteBatch={deleteBatch} onEditBatch={handleEditBatch} />}
         {activeTab === 'partners' && <PartnerManager partners={partners} onAdd={(p) => setPartners([...partners, { ...p, id: Math.random().toString(36).substr(2, 9) }])} onUpdate={(id, data) => setPartners(prev => prev.map(p => p.id === id ? { ...p, ...data } : p))} onDelete={(id) => setPartners(prev => prev.filter(p => p.id !== id))} />}
         {activeTab === 'materials' && <MaterialManager materials={materials} onAdd={(m) => setMaterials([...materials, { ...m, id: Math.random().toString(36).substr(2, 9) }])} onUpdate={(id, data) => setMaterials(prev => prev.map(m => m.id === id ? { ...m, ...data } : m))} onDelete={(id) => setMaterials(prev => prev.filter(m => m.id !== id))} />}
         {activeTab === 'transactions' && <TransactionForm partners={partners} materials={materials} batches={batches.filter(b => b.status !== 'sold')} onPurchase={addPurchase} onUpdateStatus={(id, status, w) => updateBatchStatus(id, status, { weight: w })} />}
