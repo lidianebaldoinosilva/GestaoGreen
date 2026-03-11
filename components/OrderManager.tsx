@@ -48,6 +48,7 @@ const OrderManager: React.FC<Props> = ({ orders, partners, batches, materials, o
     items: [],
     totalAmount: 0,
     pixKey: 'CNPJ 34.111.064/0001-81',
+    carrierName: '',
     status: 'pending',
     notes: ''
   };
@@ -299,14 +300,17 @@ const OrderManager: React.FC<Props> = ({ orders, partners, batches, materials, o
                       </button>
                       <button 
                         onClick={() => handleEdit(order)}
-                        className="p-2 bg-slate-50 text-slate-600 rounded-lg hover:bg-slate-100 transition"
-                        title="Editar"
+                        className={`p-2 rounded-lg transition ${order.status === 'delivered' ? 'bg-slate-100 text-slate-300 cursor-not-allowed' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'}`}
+                        title={order.status === 'delivered' ? "Pedidos entregues não podem ser editados" : "Editar"}
+                        disabled={order.status === 'delivered'}
                       >
                         <Edit2 className="w-4 h-4" />
                       </button>
                       <button 
                         onClick={() => { if(confirm('Excluir este pedido?')) onDelete(order.id); }}
-                        className="p-2 bg-slate-50 text-red-400 rounded-lg hover:bg-red-50 hover:text-red-600 transition"
+                        className={`p-2 rounded-lg transition ${order.status === 'delivered' ? 'bg-slate-100 text-slate-300 cursor-not-allowed' : 'bg-slate-50 text-red-400 hover:bg-red-50 hover:text-red-600'}`}
+                        disabled={order.status === 'delivered'}
+                        title={order.status === 'delivered' ? "Pedidos entregues não podem ser excluídos" : "Excluir"}
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -567,19 +571,33 @@ const OrderManager: React.FC<Props> = ({ orders, partners, batches, materials, o
                    </div>
                 </div>
                 {!formData.isFob && (
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-black uppercase text-brand-600 flex items-center gap-1">
-                      <Truck className="w-3 h-3" /> Valor do Frete (CIF)
-                    </label>
-                    <input 
-                      type="number" 
-                      step="0.01"
-                      placeholder="0.00"
-                      value={formData.shippingCost || ''} 
-                      onChange={e => setFormData({...formData, shippingCost: parseFloat(e.target.value) || 0})}
-                      className="w-full p-3 border border-brand-200 rounded-xl bg-white font-bold text-sm"
-                    />
-                  </div>
+                  <>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black uppercase text-brand-600 flex items-center gap-1">
+                        <Truck className="w-3 h-3" /> Valor do Frete (CIF)
+                      </label>
+                      <input 
+                        type="number" 
+                        step="0.01"
+                        placeholder="0.00"
+                        value={formData.shippingCost || ''} 
+                        onChange={e => setFormData({...formData, shippingCost: parseFloat(e.target.value) || 0})}
+                        className="w-full p-3 border border-brand-200 rounded-xl bg-white font-bold text-sm"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black uppercase text-brand-600 flex items-center gap-1">
+                        <UserCheck className="w-3 h-3" /> Motorista / Transportadora
+                      </label>
+                      <input 
+                        type="text" 
+                        placeholder="Nome do motorista ou empresa"
+                        value={formData.carrierName || ''} 
+                        onChange={e => setFormData({...formData, carrierName: e.target.value})}
+                        className="w-full p-3 border border-brand-200 rounded-xl bg-white font-bold text-sm"
+                      />
+                    </div>
+                  </>
                 )}
               </div>
 

@@ -234,14 +234,14 @@ const App: React.FC = () => {
     const newFinEntries: FinancialEntry[] = [];
     const batchIdsToUpdate: string[] = [];
 
-    // 1. Financeiro: Contas a Receber
+    // 1. Financeiro: Contas a Receber (Apenas o total dos itens, sem o frete se for CIF)
     newFinEntries.push({
       id: Math.random().toString(36).substr(2, 9),
       type: 'receivable',
       operationType: 'Venda de Produto (Pedido)',
       partnerId: order.customerId,
       batchId: order.orderNumber,
-      amount: order.totalAmount + (order.isFob ? 0 : (order.shippingCost || 0)),
+      amount: order.totalAmount, // Removido o acréscimo de frete aqui
       date: order.date,
       dueDate: order.date, // Pode ser ajustado conforme política de crédito
       status: 'pending',
@@ -254,13 +254,13 @@ const App: React.FC = () => {
         id: Math.random().toString(36).substr(2, 9),
         type: 'payable',
         operationType: 'Frete (Venda CIF)',
-        partnerId: 'carrier-generic', // Or a specific carrier if we had one
+        partnerId: 'carrier-generic', // Poderia ser um parceiro específico se selecionado
         batchId: order.orderNumber,
         amount: order.shippingCost,
         date: order.date,
         dueDate: order.date,
         status: 'pending',
-        description: `Pagamento Frete Pedido ${order.orderNumber}${order.invoiceNumber ? ` - NF: ${order.invoiceNumber}` : ''}`
+        description: `Pagamento Frete Pedido ${order.orderNumber}${order.carrierName ? ` - ${order.carrierName}` : ''}${order.invoiceNumber ? ` - NF: ${order.invoiceNumber}` : ''}`
       });
     }
 
@@ -609,7 +609,7 @@ const App: React.FC = () => {
         </div>
 
         <div className="p-4 border-t border-slate-800 opacity-60 text-center">
-          <p className="text-[10px] uppercase tracking-widest font-bold text-slate-500">v1.5.0 &copy; 2024 Green S.A.</p>
+          <p className="text-[10px] uppercase tracking-widest font-bold text-slate-500">v1.5.7 &copy; 2024 Green S.A.</p>
         </div>
       </aside>
 

@@ -103,6 +103,7 @@ export interface Order {
   items: OrderItem[];
   totalAmount: number;
   pixKey: string;
+  carrierName?: string;
   status: 'pending' | 'confirmed' | 'delivered' | 'cancelled';
   notes?: string;
 }
