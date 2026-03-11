@@ -78,6 +78,7 @@ export interface FinancialEntry {
 
 export interface OrderItem {
   id: string;
+  batchId?: string; // Link to inventory batch
   description: string;
   quantity: number;
   deliveredQuantity: number; // New: tracking how much was already sold/shipped

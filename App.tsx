@@ -205,6 +205,11 @@ const App: React.FC = () => {
   const addOrder = (order: Order) => {
     setOrders(prev => [...prev, order]);
     
+    // Se o pedido já for criado como confirmado ou entregue, processa os impactos
+    if (order.status === 'confirmed' || order.status === 'delivered') {
+      processOrderImpact(order);
+    }
+
     // Se houver vendedor e valor de comissão, gera um lançamento financeiro
     if (order.sellerId && order.commissionAmount && order.commissionAmount > 0) {
       const seller = partners.find(p => p.id === order.sellerId);
@@ -224,8 +229,68 @@ const App: React.FC = () => {
     }
   };
 
+  const processOrderImpact = (order: Order) => {
+    const newTxs: Transaction[] = [];
+    const newFinEntries: FinancialEntry[] = [];
+    const batchIdsToUpdate: string[] = [];
+
+    // 1. Financeiro: Contas a Receber
+    newFinEntries.push({
+      id: Math.random().toString(36).substr(2, 9),
+      type: 'receivable',
+      operationType: 'Venda de Produto (Pedido)',
+      partnerId: order.customerId,
+      batchId: order.orderNumber,
+      amount: order.totalAmount,
+      date: order.date,
+      dueDate: order.date, // Pode ser ajustado conforme política de crédito
+      status: 'pending',
+      description: `Recebimento Pedido ${order.orderNumber}`
+    });
+
+    // 2. Estoque: Baixa automática dos itens vinculados a lotes
+    order.items.forEach(item => {
+      if (item.batchId) {
+        batchIdsToUpdate.push(item.batchId);
+        
+        newTxs.push({
+          id: Math.random().toString(36).substr(2, 9),
+          batchId: item.batchId,
+          type: 'sale',
+          weight: item.quantity,
+          date: order.date,
+          description: `Baixa automática - Pedido ${order.orderNumber}`
+        });
+      }
+    });
+
+    if (batchIdsToUpdate.length > 0) {
+      setBatches(prev => prev.map(b => {
+        if (batchIdsToUpdate.includes(b.id)) {
+          return { ...b, status: 'sold', customerId: order.customerId, updatedAt: new Date().toISOString() };
+        }
+        return b;
+      }));
+    }
+
+    if (newTxs.length > 0) setTransactions(prev => [...prev, ...newTxs]);
+    if (newFinEntries.length > 0) setFinancials(prev => [...prev, ...newFinEntries]);
+  };
+
   const updateOrder = (id: string, updates: Partial<Order>) => {
-    setOrders(prev => prev.map(o => o.id === id ? { ...o, ...updates } : o));
+    setOrders(prev => {
+      const oldOrder = prev.find(o => o.id === id);
+      const newOrder = oldOrder ? { ...oldOrder, ...updates } : null;
+      
+      // Se o status mudou para confirmado/entregue e antes não era
+      if (oldOrder && newOrder && 
+          (newOrder.status === 'confirmed' || newOrder.status === 'delivered') && 
+          (oldOrder.status === 'pending' || oldOrder.status === 'cancelled')) {
+        processOrderImpact(newOrder);
+      }
+      
+      return prev.map(o => o.id === id ? { ...o, ...updates } : o);
+    });
   };
 
   const deleteBatch = (batchId: string) => {
@@ -558,7 +623,7 @@ const App: React.FC = () => {
         {activeTab === 'transactions' && <TransactionForm partners={partners} materials={materials} batches={batches.filter(b => b.status !== 'sold')} onPurchase={addPurchase} onUpdateStatus={(id, status, w) => updateBatchStatus(id, status, { weight: w })} />}
         {activeTab === 'history' && <HistoryReport transactions={transactions} partners={partners} materials={materials} batches={batches} />}
         {activeTab === 'financial' && <FinancialLedger entries={financials} partners={partners} onStatusChange={handleFinancialStatusChange} onUpdateEntry={handleFinancialEntryUpdate} onDeleteEntry={deleteFinancialEntry} onAddEntry={addManualFinancialEntry} />}
-        {activeTab === 'orders' && <OrderManager orders={orders} partners={partners} onAdd={addOrder} onUpdate={updateOrder} onDelete={(id) => setOrders(prev => prev.filter(o => o.id !== id))} />}
+        {activeTab === 'orders' && <OrderManager orders={orders} partners={partners} batches={batches} materials={materials} onAdd={addOrder} onUpdate={updateOrder} onDelete={(id) => setOrders(prev => prev.filter(o => o.id !== id))} />}
       </main>
     </div>
   );

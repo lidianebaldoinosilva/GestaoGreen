@@ -1,25 +1,39 @@
 
 import React, { useState, useMemo } from 'react';
-import { Order, Partner, OrderItem } from '../types.ts';
-import { Plus, Search, Filter, Calendar, DollarSign, X, Save, Trash2, Edit2, FileText, Printer, CheckCircle, Clock, ClipboardList, Sprout, UserCheck, Truck } from 'lucide-react';
+import { Order, Partner, OrderItem, Batch, Material } from '../types.ts';
+import { Plus, Search, Filter, Calendar, DollarSign, X, Save, Trash2, Edit2, FileText, Printer, CheckCircle, Clock, ClipboardList, Sprout, UserCheck, Truck, Boxes } from 'lucide-react';
 
 interface Props {
   orders: Order[];
   partners: Partner[];
+  batches: Batch[];
+  materials: Material[];
   onAdd: (o: Order) => void;
   onUpdate: (id: string, o: Partial<Order>) => void;
   onDelete: (id: string) => void;
 }
 
-const OrderManager: React.FC<Props> = ({ orders, partners, onAdd, onUpdate, onDelete }) => {
+const OrderManager: React.FC<Props> = ({ orders, partners, batches, materials, onAdd, onUpdate, onDelete }) => {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | Order['status']>('all');
   const [viewOrder, setViewOrder] = useState<Order | null>(null);
 
+  const getNextOrderNumber = () => {
+    if (orders.length === 0) return 'PED-001';
+    const numbers = orders
+      .map(o => {
+        const match = o.orderNumber.match(/PED-(\d+)/);
+        return match ? parseInt(match[1]) : 0;
+      })
+      .filter(n => !isNaN(n));
+    const max = Math.max(0, ...numbers);
+    return `PED-${(max + 1).toString().padStart(3, '0')}`;
+  };
+
   const initialFormState: Omit<Order, 'id'> = {
-    orderNumber: `PED-${new Date().getTime().toString().substr(-6)}`,
+    orderNumber: getNextOrderNumber(),
     date: new Date().toISOString().split('T')[0],
     customerId: '',
     sellerId: '',
@@ -37,7 +51,29 @@ const OrderManager: React.FC<Props> = ({ orders, partners, onAdd, onUpdate, onDe
   };
 
   const [formData, setFormData] = useState(initialFormState);
-  const [newItem, setNewItem] = useState({ description: '', quantity: '', unitPrice: '' });
+  const [newItem, setNewItem] = useState({ description: '', quantity: '', unitPrice: '', batchId: '' });
+
+  // Available batches for sale (finished or extruded)
+  const availableBatches = useMemo(() => {
+    return batches.filter(b => b.status === 'finished' || b.status === 'extruded');
+  }, [batches]);
+
+  const handleBatchChange = (batchId: string) => {
+    if (!batchId) {
+      setNewItem({ ...newItem, batchId: '', description: '', quantity: '' });
+      return;
+    }
+    const batch = availableBatches.find(b => b.id === batchId);
+    if (batch) {
+      const material = materials.find(m => m.code === batch.materialCode);
+      setNewItem({
+        ...newItem,
+        batchId: batch.id,
+        description: `${material?.name || 'Material'} (Lote: ${batch.id})`,
+        quantity: batch.weightKg.toString()
+      });
+    }
+  };
 
   const filteredOrders = useMemo(() => {
     return orders.filter(o => {
@@ -69,6 +105,7 @@ const OrderManager: React.FC<Props> = ({ orders, partners, onAdd, onUpdate, onDe
     const up = parseFloat(newItem.unitPrice);
     const item: OrderItem = {
       id: Math.random().toString(36).substr(2, 9),
+      batchId: newItem.batchId || undefined,
       description: newItem.description,
       quantity: qty,
       deliveredQuantity: 0,
@@ -82,7 +119,7 @@ const OrderManager: React.FC<Props> = ({ orders, partners, onAdd, onUpdate, onDe
       items: updatedItems,
       totalAmount: updatedItems.reduce((acc, curr) => acc + curr.total, 0)
     });
-    setNewItem({ description: '', quantity: '', unitPrice: '' });
+    setNewItem({ description: '', quantity: '', unitPrice: '', batchId: '' });
   };
 
   const removeItem = (id: string) => {
@@ -466,6 +503,26 @@ const OrderManager: React.FC<Props> = ({ orders, partners, onAdd, onUpdate, onDe
                 <h4 className="text-xs font-black uppercase text-slate-500 mb-4 tracking-widest">Itens do Pedido</h4>
                 
                 <div className="flex flex-col md:flex-row gap-4 mb-6">
+                  <div className="w-full md:w-64 space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1">
+                      <Boxes className="w-3 h-3" /> Puxar do Estoque
+                    </label>
+                    <select 
+                      value={newItem.batchId}
+                      onChange={e => handleBatchChange(e.target.value)}
+                      className="w-full p-3 border border-slate-200 rounded-xl bg-white text-sm"
+                    >
+                      <option value="">Manual / Outro</option>
+                      {availableBatches.map(b => {
+                        const material = materials.find(m => m.code === b.materialCode);
+                        return (
+                          <option key={b.id} value={b.id}>
+                            {material?.name} - {b.weightKg}kg ({b.id})
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
                   <div className="flex-1 space-y-1">
                     <label className="text-[10px] font-bold text-slate-400 uppercase">Descrição do Produto</label>
                     <input 
