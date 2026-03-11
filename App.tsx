@@ -254,7 +254,7 @@ const App: React.FC = () => {
         id: Math.random().toString(36).substr(2, 9),
         type: 'payable',
         operationType: 'Frete (Venda CIF)',
-        partnerId: 'carrier-generic', // Poderia ser um parceiro específico se selecionado
+        partnerId: order.carrierName || 'carrier-generic',
         batchId: order.orderNumber,
         amount: order.shippingCost,
         date: order.date,
@@ -265,9 +265,10 @@ const App: React.FC = () => {
     }
 
     // 2. Estoque: Baixa automática dos itens vinculados a lotes
+    const batchesToUpdate: { id: string, soldWeight: number }[] = [];
     order.items.forEach(item => {
       if (item.batchId) {
-        batchIdsToUpdate.push(item.batchId);
+        batchesToUpdate.push({ id: item.batchId, soldWeight: item.quantity });
         
         newTxs.push({
           id: Math.random().toString(36).substr(2, 9),
@@ -280,13 +281,34 @@ const App: React.FC = () => {
       }
     });
 
-    if (batchIdsToUpdate.length > 0) {
-      setBatches(prev => prev.map(b => {
-        if (batchIdsToUpdate.includes(b.id)) {
-          return { ...b, status: 'sold', customerId: order.customerId, updatedAt: new Date().toISOString() };
-        }
-        return b;
-      }));
+    if (batchesToUpdate.length > 0) {
+      setBatches(prev => {
+        let currentBatches = [...prev];
+        batchesToUpdate.forEach(update => {
+          const batchIndex = currentBatches.findIndex(b => b.id === update.id);
+          if (batchIndex !== -1) {
+            const batch = currentBatches[batchIndex];
+            if (update.soldWeight >= batch.weightKg) {
+              // Baixa total
+              currentBatches[batchIndex] = { ...batch, status: 'sold', customerId: order.customerId, updatedAt: new Date().toISOString() };
+            } else {
+              // Baixa parcial: reduz o peso do lote original e cria um novo lote 'sold'
+              const soldBatchId = `${batch.id}/V-${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
+              const soldBatch: Batch = {
+                ...batch,
+                id: soldBatchId,
+                weightKg: update.soldWeight,
+                status: 'sold',
+                customerId: order.customerId,
+                updatedAt: new Date().toISOString()
+              };
+              currentBatches[batchIndex] = { ...batch, weightKg: batch.weightKg - update.soldWeight, updatedAt: new Date().toISOString() };
+              currentBatches.push(soldBatch);
+            }
+          }
+        });
+        return currentBatches;
+      });
     }
 
     if (newTxs.length > 0) setTransactions(prev => [...prev, ...newTxs]);
@@ -609,7 +631,7 @@ const App: React.FC = () => {
         </div>
 
         <div className="p-4 border-t border-slate-800 opacity-60 text-center">
-          <p className="text-[10px] uppercase tracking-widest font-bold text-slate-500">v1.5.7 &copy; 2024 Green S.A.</p>
+          <p className="text-[10px] uppercase tracking-widest font-bold text-slate-500">v1.5.8 &copy; 2024 Green S.A.</p>
         </div>
       </aside>
 

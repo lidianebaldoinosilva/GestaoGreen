@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Order, Partner, OrderItem, Batch, Material } from '../types.ts';
-import { Plus, Search, Filter, Calendar, DollarSign, X, Save, Trash2, Edit2, FileText, Printer, CheckCircle, Clock, ClipboardList, Sprout, UserCheck, Truck, Boxes } from 'lucide-react';
+import { Plus, Search, Filter, Calendar, DollarSign, X, Save, Trash2, Edit2, FileText, Printer, CheckCircle, Clock, ClipboardList, Sprout, UserCheck, Truck, Boxes, ArrowLeftRight } from 'lucide-react';
 
 interface Props {
   orders: Order[];
@@ -342,7 +342,15 @@ const OrderManager: React.FC<Props> = ({ orders, partners, batches, materials, o
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4 overflow-y-auto">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl p-10 animate-in zoom-in duration-200 print:shadow-none print:p-0">
             <div className="flex justify-between items-center mb-10 print:hidden">
-              <h3 className="text-xl font-black text-slate-800 uppercase tracking-widest">Visualização do Pedido</h3>
+              <div className="flex items-center gap-4">
+                <button 
+                  onClick={() => setViewOrder(null)} 
+                  className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg font-bold transition"
+                >
+                  <ArrowLeftRight className="w-4 h-4 rotate-180" /> Voltar
+                </button>
+                <h3 className="text-xl font-black text-slate-800 uppercase tracking-widest">Visualização do Pedido</h3>
+              </div>
               <div className="flex gap-4">
                 <button 
                   onClick={() => handlePrint(viewOrder)}
@@ -453,12 +461,6 @@ const OrderManager: React.FC<Props> = ({ orders, partners, batches, materials, o
 
               <div className="mt-10 flex justify-between items-end border-t-2 border-slate-800 pt-6">
                 <div className="space-y-2">
-                   <p className="text-[10px] font-black uppercase text-brand-600">Formas de Pagamento:</p>
-                   <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
-                     <p className="text-sm font-bold text-slate-700 flex items-center gap-2">
-                       <DollarSign className="w-4 h-4" /> PIX: {viewOrder.pixKey}
-                     </p>
-                   </div>
                    <p className="text-[10px] italic text-slate-400 mt-4">Favor conferir a mercadoria.</p>
                 </div>
                 <div className="text-center w-64 border-t border-slate-400 pt-2">

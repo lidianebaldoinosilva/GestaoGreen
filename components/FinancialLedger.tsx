@@ -258,7 +258,7 @@ const FinancialLedger: React.FC<Props> = ({ entries, partners, onStatusChange, o
                   <td className={`px-6 py-4 text-xs font-bold ${entry.type === 'receivable' ? 'text-emerald-700' : 'text-slate-700'}`}>{formatDate(entry.dueDate)}</td>
                   <td className="px-6 py-4">
                     <div className="text-sm font-bold text-slate-800">
-                        {partners.find(p => p.id === entry.partnerId)?.name || 'N/A'}
+                        {partners.find(p => p.id === entry.partnerId)?.name || entry.partnerId || 'N/A'}
                     </div>
                   </td>
                   <td className="px-6 py-4">
