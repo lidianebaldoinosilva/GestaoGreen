@@ -34,6 +34,7 @@ const OrderManager: React.FC<Props> = ({ orders, partners, batches, materials, o
 
   const initialFormState: Omit<Order, 'id'> = {
     orderNumber: getNextOrderNumber(),
+    invoiceNumber: '',
     date: new Date().toISOString().split('T')[0],
     customerId: '',
     sellerId: '',
@@ -172,9 +173,22 @@ const OrderManager: React.FC<Props> = ({ orders, partners, batches, materials, o
   };
 
   const handleEdit = (order: Order) => {
-    setFormData(order);
+    setFormData({
+      ...order,
+      invoiceNumber: order.invoiceNumber || ''
+    });
     setEditingId(order.id);
     setIsFormOpen(true);
+  };
+
+  const handleBaixarPedido = (order: Order) => {
+    const nf = prompt("Informe o número da Nota Fiscal (opcional):", order.invoiceNumber || "");
+    if (nf === null) return; // Cancelled prompt
+    
+    onUpdate(order.id, { 
+      status: 'delivered', 
+      invoiceNumber: nf || order.invoiceNumber 
+    });
   };
 
   const handlePrint = (order: Order) => {
@@ -269,33 +283,50 @@ const OrderManager: React.FC<Props> = ({ orders, partners, batches, materials, o
                       <div className="bg-emerald-500 h-full transition-all duration-500" style={{ width: `${progress}%` }} />
                    </div>
                 </div>
-                <div className="mt-4 flex justify-between items-end">
-                  <div>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase">Total</p>
-                    <p className="text-xl font-black text-brand-700">R$ {order.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                <div className="mt-4 flex flex-col gap-3">
+                  <div className="flex justify-between items-end">
+                    <div>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase">Total</p>
+                      <p className="text-xl font-black text-brand-700">R$ {order.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button 
+                        onClick={() => setViewOrder(order)}
+                        className="p-2 bg-slate-50 text-slate-600 rounded-lg hover:bg-slate-100 transition"
+                        title="Ver Pedido"
+                      >
+                        <FileText className="w-4 h-4" />
+                      </button>
+                      <button 
+                        onClick={() => handleEdit(order)}
+                        className="p-2 bg-slate-50 text-slate-600 rounded-lg hover:bg-slate-100 transition"
+                        title="Editar"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button 
+                        onClick={() => { if(confirm('Excluir este pedido?')) onDelete(order.id); }}
+                        className="p-2 bg-slate-50 text-red-400 rounded-lg hover:bg-red-50 hover:text-red-600 transition"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex gap-2">
+                  
+                  {order.status !== 'delivered' && order.status !== 'cancelled' && (
                     <button 
-                      onClick={() => setViewOrder(order)}
-                      className="p-2 bg-slate-50 text-slate-600 rounded-lg hover:bg-slate-100 transition"
-                      title="Ver Pedido"
+                      onClick={() => handleBaixarPedido(order)}
+                      className="w-full bg-emerald-600 text-white py-2.5 rounded-xl font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-2 hover:bg-emerald-700 transition shadow-lg shadow-emerald-100"
                     >
-                      <FileText className="w-4 h-4" />
+                      <CheckCircle className="w-4 h-4" /> Baixar Pedido
                     </button>
-                    <button 
-                      onClick={() => handleEdit(order)}
-                      className="p-2 bg-slate-50 text-slate-600 rounded-lg hover:bg-slate-100 transition"
-                      title="Editar"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </button>
-                    <button 
-                      onClick={() => { if(confirm('Excluir este pedido?')) onDelete(order.id); }}
-                      className="p-2 bg-slate-50 text-red-400 rounded-lg hover:bg-red-50 hover:text-red-600 transition"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
+                  )}
+                  {order.invoiceNumber && (
+                    <div className="flex items-center gap-2 text-[10px] font-bold text-slate-500 bg-slate-50 p-2 rounded-lg border border-slate-100">
+                      <FileText className="w-3 h-3 text-brand-500" />
+                      <span>NF: {order.invoiceNumber}</span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -345,6 +376,12 @@ const OrderManager: React.FC<Props> = ({ orders, partners, batches, materials, o
                       <p className="text-[10px] font-bold text-slate-400 uppercase">Localidade / Data</p>
                       <p className="font-bold text-slate-800">Santa Isabel, {new Date(viewOrder.date).toLocaleDateString('pt-BR')}</p>
                     </div>
+                    {viewOrder.invoiceNumber && (
+                      <div>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase">Nota Fiscal</p>
+                        <p className="font-black text-brand-700">{viewOrder.invoiceNumber}</p>
+                      </div>
+                    )}
                  </div>
                  <div className="bg-brand-950 text-white px-6 py-2 rounded font-black uppercase tracking-widest">
                    Pedido
@@ -449,6 +486,16 @@ const OrderManager: React.FC<Props> = ({ orders, partners, batches, materials, o
                   />
                 </div>
                 <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase text-slate-400">Número da NF</label>
+                  <input 
+                    type="text" 
+                    placeholder="Opcional"
+                    value={formData.invoiceNumber || ''} 
+                    onChange={e => setFormData({...formData, invoiceNumber: e.target.value})}
+                    className="w-full p-3 border border-slate-200 rounded-xl bg-slate-50 font-bold"
+                  />
+                </div>
+                <div className="space-y-1">
                   <label className="text-[10px] font-black uppercase text-slate-400">Data</label>
                   <input 
                     type="date" 
@@ -457,7 +504,7 @@ const OrderManager: React.FC<Props> = ({ orders, partners, batches, materials, o
                     className="w-full p-3 border border-slate-200 rounded-xl bg-slate-50 font-bold"
                   />
                 </div>
-                <div className="space-y-1 md:col-span-2">
+                <div className="space-y-1">
                   <label className="text-[10px] font-black uppercase text-slate-400">Cliente</label>
                   <select 
                     required 

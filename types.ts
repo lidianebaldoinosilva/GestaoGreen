@@ -89,6 +89,7 @@ export interface OrderItem {
 export interface Order {
   id: string;
   orderNumber: string;
+  invoiceNumber?: string;
   date: string;
   customerId: string;
   sellerId?: string;

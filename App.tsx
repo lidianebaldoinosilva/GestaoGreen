@@ -245,7 +245,7 @@ const App: React.FC = () => {
       date: order.date,
       dueDate: order.date, // Pode ser ajustado conforme política de crédito
       status: 'pending',
-      description: `Recebimento Pedido ${order.orderNumber}`
+      description: `Recebimento Pedido ${order.orderNumber}${order.invoiceNumber ? ` - NF: ${order.invoiceNumber}` : ''}`
     });
 
     // 1.1 Financeiro: Contas a Pagar (Frete CIF)
@@ -260,7 +260,7 @@ const App: React.FC = () => {
         date: order.date,
         dueDate: order.date,
         status: 'pending',
-        description: `Pagamento Frete Pedido ${order.orderNumber}`
+        description: `Pagamento Frete Pedido ${order.orderNumber}${order.invoiceNumber ? ` - NF: ${order.invoiceNumber}` : ''}`
       });
     }
 
@@ -275,7 +275,7 @@ const App: React.FC = () => {
           type: 'sale',
           weight: item.quantity,
           date: order.date,
-          description: `Baixa automática - Pedido ${order.orderNumber}`
+          description: `Baixa automática - Pedido ${order.orderNumber}${order.invoiceNumber ? ` - NF: ${order.invoiceNumber}` : ''}`
         });
       }
     });
