@@ -134,53 +134,62 @@ const App: React.FC = () => {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const addPurchase = (partnerId: string, materialCode: string, weight: number, pricePerKg?: number, customDate?: string, shipping?: ShippingInfo, dueDate?: string) => {
+  const addPurchase = (partnerId: string, items: { materialCode: string, weight: number, pricePerKg?: number }[], customDate?: string, shipping?: ShippingInfo, dueDate?: string) => {
     const partner = partners.find(p => p.id === partnerId);
     if (!partner) return;
 
-    const sequence = (batches.filter(b => b.partnerId === partnerId).length + 1).toString().padStart(3, '0');
-    const newBatchId = `${partner.code}/${sequence}/${materialCode}`;
     const dateToUse = customDate ? new Date(customDate).toISOString() : new Date().toISOString();
     const dueDateToUse = dueDate ? new Date(dueDate).toISOString() : dateToUse;
-    
-    const newBatch: Batch = {
-      id: newBatchId,
-      partnerId,
-      batchSequence: sequence,
-      materialCode,
-      weightKg: weight,
-      status: 'raw',
-      createdAt: dateToUse,
-      updatedAt: dateToUse,
-      purchasePricePerKg: pricePerKg,
-      shipping: shipping
-    };
 
-    const newTx: Transaction = {
-      id: Math.random().toString(36).substr(2, 9),
-      batchId: newBatchId,
-      type: 'purchase',
-      weight,
-      date: dateToUse,
-      description: `Compra de ${partner.name}${pricePerKg ? ` (R$ ${pricePerKg}/kg)` : ''}`
-    };
-
+    const newBatches: Batch[] = [];
+    const newTxs: Transaction[] = [];
     const newFinEntries: FinancialEntry[] = [];
 
-    if (pricePerKg) {
-      newFinEntries.push({
-        id: Math.random().toString(36).substr(2, 9),
-        type: 'payable',
-        operationType: 'Compra de Matéria Prima',
+    const existingPartnerBatchesCount = batches.filter(b => b.partnerId === partnerId).length;
+
+    items.forEach((item, index) => {
+      const sequence = (existingPartnerBatchesCount + 1 + index).toString().padStart(3, '0');
+      const newBatchId = `${partner.code}/${sequence}/${item.materialCode}`;
+      
+      const newBatch: Batch = {
+        id: newBatchId,
         partnerId,
+        batchSequence: sequence,
+        materialCode: item.materialCode,
+        weightKg: item.weight,
+        status: 'raw',
+        createdAt: dateToUse,
+        updatedAt: dateToUse,
+        purchasePricePerKg: item.pricePerKg,
+        shipping: index === 0 ? shipping : undefined
+      };
+
+      newBatches.push(newBatch);
+
+      newTxs.push({
+        id: Math.random().toString(36).substr(2, 9),
         batchId: newBatchId,
-        amount: weight * pricePerKg,
+        type: 'purchase',
+        weight: item.weight,
         date: dateToUse,
-        dueDate: dueDateToUse,
-        status: 'pending',
-        description: `Pagamento Lote ${newBatchId} - ${partner.name}`
+        description: `Compra de ${partner.name}${item.pricePerKg ? ` (R$ ${item.pricePerKg}/kg)` : ''}`
       });
-    }
+
+      if (item.pricePerKg) {
+        newFinEntries.push({
+          id: Math.random().toString(36).substr(2, 9),
+          type: 'payable',
+          operationType: 'Compra de Matéria Prima',
+          partnerId,
+          batchId: newBatchId,
+          amount: item.weight * item.pricePerKg,
+          date: dateToUse,
+          dueDate: dueDateToUse,
+          status: 'pending',
+          description: `Pagamento Lote ${newBatchId} - ${partner.name}`
+        });
+      }
+    });
 
     if (shipping && !shipping.isFobOrOwn && shipping.cost && shipping.cost > 0) {
         newFinEntries.push({
@@ -188,18 +197,18 @@ const App: React.FC = () => {
             type: 'payable',
             operationType: 'Frete',
             partnerId: 'carrier-generic',
-            batchId: newBatchId,
+            batchId: newBatches[0].id,
             amount: shipping.cost,
             date: dateToUse,
             dueDate: dueDateToUse,
             status: 'pending',
-            description: `Frete Lote ${newBatchId} - ${shipping.carrier || 'Transportadora'}`
+            description: `Frete Lotes ${newBatches.map(b => b.id).join(', ')} - ${shipping.carrier || 'Transportadora'}`
         });
     }
 
     setFinancials(prev => [...prev, ...newFinEntries]);
-    setBatches([...batches, newBatch]);
-    setTransactions(prev => [...prev, newTx]);
+    setBatches(prev => [...prev, ...newBatches]);
+    setTransactions(prev => [...prev, ...newTxs]);
   };
 
   const addOrder = (order: Order) => {
@@ -631,7 +640,7 @@ const App: React.FC = () => {
         </div>
 
         <div className="p-4 border-t border-slate-800 opacity-60 text-center">
-          <p className="text-[10px] uppercase tracking-widest font-bold text-slate-500">v1.6.1 &copy; 2024 Green S.A.</p>
+          <p className="text-[10px] uppercase tracking-widest font-bold text-slate-500">v1.7.0 &copy; 2024 Green S.A.</p>
         </div>
       </aside>
 

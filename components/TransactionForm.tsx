@@ -1,23 +1,30 @@
 
 import React, { useState } from 'react';
 import { Partner, Material, Batch, BatchStatus, ShippingInfo } from '../types.ts';
-import { ShoppingCart, RefreshCw, Save, DollarSign, Calendar, Truck } from 'lucide-react';
+import { ShoppingCart, RefreshCw, Save, DollarSign, Calendar, Truck, Trash2, Plus, X } from 'lucide-react';
+
+interface PurchaseItem {
+  id: string;
+  materialCode: string;
+  weight: number;
+  pricePerKg?: number;
+}
 
 interface Props {
   partners: Partner[];
   materials: Material[];
   batches: Batch[];
-  onPurchase: (partnerId: string, materialCode: string, weight: number, pricePerKg?: number, date?: string, shipping?: ShippingInfo, dueDate?: string) => void;
+  onPurchase: (partnerId: string, items: { materialCode: string, weight: number, pricePerKg?: number }[], date?: string, shipping?: ShippingInfo, dueDate?: string) => void;
   onUpdateStatus: (id: string, status: BatchStatus, weight?: number) => void;
 }
 
 const TransactionForm: React.FC<Props> = ({ partners, materials, batches, onPurchase, onUpdateStatus }) => {
   const [pPartner, setPPartner] = useState('');
-  const [pMaterial, setPMaterial] = useState('010');
-  const [pWeight, setPWeight] = useState('');
-  const [pPrice, setPPrice] = useState('');
   const [pDate, setPDate] = useState(new Date().toISOString().split('T')[0]);
   const [pDueDate, setPDueDate] = useState(new Date().toISOString().split('T')[0]);
+  
+  const [purchaseItems, setPurchaseItems] = useState<PurchaseItem[]>([]);
+  const [newItem, setNewItem] = useState({ materialCode: '010', weight: '', pricePerKg: '' });
 
   // Shipping Info States
   const [sPlate, setSPlate] = useState('');
@@ -29,9 +36,26 @@ const TransactionForm: React.FC<Props> = ({ partners, materials, batches, onPurc
   const [sDest, setSDest] = useState('');
   const [sIsFobOrOwn, setSIsFobOrOwn] = useState(false);
 
+  const addPurchaseItem = () => {
+    if (newItem.materialCode && newItem.weight) {
+      const item: PurchaseItem = {
+        id: Math.random().toString(36).substr(2, 9),
+        materialCode: newItem.materialCode,
+        weight: parseFloat(newItem.weight),
+        pricePerKg: newItem.pricePerKg ? parseFloat(newItem.pricePerKg) : undefined
+      };
+      setPurchaseItems([...purchaseItems, item]);
+      setNewItem({ materialCode: '010', weight: '', pricePerKg: '' });
+    }
+  };
+
+  const removePurchaseItem = (id: string) => {
+    setPurchaseItems(purchaseItems.filter(i => i.id !== id));
+  };
+
   const handlePurchaseSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (pPartner && pMaterial && pWeight) {
+    if (pPartner && purchaseItems.length > 0) {
       const shipping: ShippingInfo = {
         plate: sPlate,
         driverName: sDriver,
@@ -43,11 +67,16 @@ const TransactionForm: React.FC<Props> = ({ partners, materials, batches, onPurc
         isFobOrOwn: sIsFobOrOwn
       };
 
-      onPurchase(pPartner, pMaterial, parseFloat(pWeight), pPrice ? parseFloat(pPrice) : undefined, pDate, shipping, pDueDate);
+      onPurchase(
+        pPartner, 
+        purchaseItems.map(i => ({ materialCode: i.materialCode, weight: i.weight, pricePerKg: i.pricePerKg })), 
+        pDate, 
+        shipping, 
+        pDueDate
+      );
       
       // Reset
-      setPWeight('');
-      setPPrice('');
+      setPurchaseItems([]);
       setPDate(new Date().toISOString().split('T')[0]);
       setPDueDate(new Date().toISOString().split('T')[0]);
       setSPlate('');
@@ -60,6 +89,8 @@ const TransactionForm: React.FC<Props> = ({ partners, materials, batches, onPurc
       setSIsFobOrOwn(false);
       
       alert("Entrada de material registrada!");
+    } else {
+      alert("Selecione um fornecedor e adicione pelo menos um material.");
     }
   };
 
@@ -77,7 +108,7 @@ const TransactionForm: React.FC<Props> = ({ partners, materials, batches, onPurc
             <h4 className="text-lg font-bold text-slate-700 flex items-center gap-2">
               <ShoppingCart className="w-5 h-5 text-emerald-500" /> Dados da Mercadoria
             </h4>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="space-y-2">
                 <label className="text-sm font-bold text-slate-600 uppercase">Data da Compra</label>
                 <div className="relative">
@@ -114,26 +145,82 @@ const TransactionForm: React.FC<Props> = ({ partners, materials, batches, onPurc
                   {partners.filter(p => p.type !== 'customer').map(p => (<option key={p.id} value={p.id}>{p.name} ({p.code})</option>))}
                 </select>
               </div>
-              <div className="space-y-2">
-                <label className="text-sm font-bold text-slate-600 uppercase">Material</label>
-                <select required value={pMaterial} onChange={e => setPMaterial(e.target.value)} className="w-full p-3 border border-slate-200 rounded-xl bg-slate-50">
-                  {materials.map(m => (<option key={m.id} value={m.code}>{m.name} ({m.code})</option>))}
-                </select>
-              </div>
             </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <label className="text-sm font-bold text-slate-600 uppercase">Peso Total (Kg)</label>
-                <input required type="number" value={pWeight} onChange={e => setPWeight(e.target.value)} className="w-full p-3 border border-slate-200 rounded-xl bg-slate-50" placeholder="Ex: 1500" />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-bold text-slate-600 uppercase">Preço por Kg (Opcional)</label>
-                <div className="relative">
-                  <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-                  <input type="number" step="0.01" value={pPrice} onChange={e => setPPrice(e.target.value)} className="w-full p-3 pl-10 border border-slate-200 rounded-xl bg-slate-50" placeholder="R$ 0,00" />
+
+            <div className="p-6 bg-slate-50 rounded-2xl border border-slate-200 space-y-4">
+              <h5 className="text-xs font-black uppercase text-slate-500 tracking-widest">Adicionar Materiais</h5>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase">Material</label>
+                  <select 
+                    value={newItem.materialCode} 
+                    onChange={e => setNewItem({...newItem, materialCode: e.target.value})} 
+                    className="w-full p-2.5 border border-slate-200 rounded-lg bg-white"
+                  >
+                    {materials.map(m => (<option key={m.id} value={m.code}>{m.name} ({m.code})</option>))}
+                  </select>
                 </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase">Peso (Kg)</label>
+                  <input 
+                    type="number" 
+                    value={newItem.weight} 
+                    onChange={e => setNewItem({...newItem, weight: e.target.value})} 
+                    className="w-full p-2.5 border border-slate-200 rounded-lg bg-white" 
+                    placeholder="0" 
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase">Preço/Kg (Opcional)</label>
+                  <input 
+                    type="number" 
+                    step="0.01" 
+                    value={newItem.pricePerKg} 
+                    onChange={e => setNewItem({...newItem, pricePerKg: e.target.value})} 
+                    className="w-full p-2.5 border border-slate-200 rounded-lg bg-white" 
+                    placeholder="0.00" 
+                  />
+                </div>
+                <button 
+                  type="button" 
+                  onClick={addPurchaseItem}
+                  className="bg-brand-600 text-white p-2.5 rounded-lg font-bold hover:bg-brand-700 transition flex items-center justify-center gap-2"
+                >
+                  <Plus className="w-4 h-4" /> Adicionar Material
+                </button>
               </div>
+
+              {purchaseItems.length > 0 && (
+                <div className="mt-4 border-t border-slate-200 pt-4">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-[10px] uppercase font-bold text-slate-400">
+                        <th className="text-left py-2">Material</th>
+                        <th className="text-right py-2">Peso</th>
+                        <th className="text-right py-2">Preço/Kg</th>
+                        <th className="text-right py-2 w-10"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {purchaseItems.map(item => {
+                        const material = materials.find(m => m.code === item.materialCode);
+                        return (
+                          <tr key={item.id}>
+                            <td className="py-2 font-medium">{material?.name} ({item.materialCode})</td>
+                            <td className="py-2 text-right font-bold">{item.weight} Kg</td>
+                            <td className="py-2 text-right">{item.pricePerKg ? `R$ ${item.pricePerKg.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '---'}</td>
+                            <td className="py-2 text-right">
+                              <button type="button" onClick={() => removePurchaseItem(item.id)} className="text-red-400 hover:text-red-600 transition p-1">
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           </div>
 
