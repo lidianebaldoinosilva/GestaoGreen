@@ -631,7 +631,7 @@ const App: React.FC = () => {
         </div>
 
         <div className="p-4 border-t border-slate-800 opacity-60 text-center">
-          <p className="text-[10px] uppercase tracking-widest font-bold text-slate-500">v1.5.9 &copy; 2024 Green S.A.</p>
+          <p className="text-[10px] uppercase tracking-widest font-bold text-slate-500">v1.6.0 &copy; 2024 Green S.A.</p>
         </div>
       </aside>
 

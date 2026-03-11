@@ -463,6 +463,21 @@ const OrderManager: React.FC<Props> = ({ orders, partners, batches, materials, o
                 </div>
               </div>
             </div>
+
+            <div className="mt-8 flex justify-between items-center print:hidden border-t border-slate-100 pt-6">
+              <button 
+                onClick={() => setViewOrder(null)} 
+                className="flex items-center gap-2 px-6 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl font-bold transition shadow-sm"
+              >
+                <ArrowLeftRight className="w-5 h-5 rotate-180" /> Sair
+              </button>
+              <button 
+                onClick={() => handlePrint(viewOrder)}
+                className="bg-brand-600 text-white px-8 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-brand-700 transition shadow-lg shadow-brand-100"
+              >
+                <Printer className="w-5 h-5" /> Imprimir Pedido
+              </button>
+            </div>
           </div>
         </div>
       )}
