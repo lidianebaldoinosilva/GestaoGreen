@@ -94,6 +94,7 @@ export interface Order {
   sellerId?: string;
   commissionAmount?: number;
   isFob?: boolean; // true = FOB, false = CIF
+  shippingCost?: number;
   cnpj?: string;
   ie?: string;
   address?: string;

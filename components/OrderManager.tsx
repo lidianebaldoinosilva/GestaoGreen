@@ -39,6 +39,7 @@ const OrderManager: React.FC<Props> = ({ orders, partners, batches, materials, o
     sellerId: '',
     commissionAmount: 0,
     isFob: false,
+    shippingCost: 0,
     cnpj: '',
     ie: '',
     address: '',
@@ -124,6 +125,27 @@ const OrderManager: React.FC<Props> = ({ orders, partners, batches, materials, o
 
   const removeItem = (id: string) => {
     const updatedItems = formData.items.filter(item => item.id !== id);
+    setFormData({
+      ...formData,
+      items: updatedItems,
+      totalAmount: updatedItems.reduce((acc, curr) => acc + curr.total, 0)
+    });
+  };
+
+  const updateItem = (id: string, field: 'quantity' | 'unitPrice', value: string) => {
+    const val = parseFloat(value) || 0;
+    const updatedItems = formData.items.map(item => {
+      if (item.id === id) {
+        const newQty = field === 'quantity' ? val : item.quantity;
+        const newPrice = field === 'unitPrice' ? val : item.unitPrice;
+        return {
+          ...item,
+          [field]: val,
+          total: newQty * newPrice
+        };
+      }
+      return item;
+    });
     setFormData({
       ...formData,
       items: updatedItems,
@@ -497,31 +519,75 @@ const OrderManager: React.FC<Props> = ({ orders, partners, batches, materials, o
                       </div>
                    </div>
                 </div>
+                {!formData.isFob && (
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase text-brand-600 flex items-center gap-1">
+                      <Truck className="w-3 h-3" /> Valor do Frete (CIF)
+                    </label>
+                    <input 
+                      type="number" 
+                      step="0.01"
+                      placeholder="0.00"
+                      value={formData.shippingCost || ''} 
+                      onChange={e => setFormData({...formData, shippingCost: parseFloat(e.target.value) || 0})}
+                      className="w-full p-3 border border-brand-200 rounded-xl bg-white font-bold text-sm"
+                    />
+                  </div>
+                )}
               </div>
 
               <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200">
                 <h4 className="text-xs font-black uppercase text-slate-500 mb-4 tracking-widest">Itens do Pedido</h4>
                 
-                <div className="flex flex-col md:flex-row gap-4 mb-6">
-                  <div className="w-full md:w-64 space-y-1">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1">
-                      <Boxes className="w-3 h-3" /> Puxar do Estoque
-                    </label>
-                    <select 
-                      value={newItem.batchId}
-                      onChange={e => handleBatchChange(e.target.value)}
-                      className="w-full p-3 border border-slate-200 rounded-xl bg-white text-sm"
+                <div className="flex flex-col gap-4 mb-6">
+                  <div className="flex flex-col md:flex-row gap-4">
+                    <div className="w-full md:w-64 space-y-1">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1">
+                        <Boxes className="w-3 h-3" /> Puxar do Estoque
+                      </label>
+                      <select 
+                        value={newItem.batchId}
+                        onChange={e => handleBatchChange(e.target.value)}
+                        className="w-full p-3 border border-slate-200 rounded-xl bg-white text-sm"
+                      >
+                        <option value="">Manual / Outro</option>
+                        {availableBatches.map(b => {
+                          const material = materials.find(m => m.code === b.materialCode);
+                          return (
+                            <option key={b.id} value={b.id}>
+                              {material?.name} - {b.weightKg}kg ({b.id})
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </div>
+                    <div className="w-full md:w-32 space-y-1">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase">Qtd (Kg)</label>
+                      <input 
+                        type="number" 
+                        placeholder="0"
+                        value={newItem.quantity}
+                        onChange={e => setNewItem({...newItem, quantity: e.target.value})}
+                        className="w-full p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-brand-500"
+                      />
+                    </div>
+                    <div className="w-full md:w-40 space-y-1">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase">V. Unitário</label>
+                      <input 
+                        type="number" 
+                        placeholder="0.00"
+                        value={newItem.unitPrice}
+                        onChange={e => setNewItem({...newItem, unitPrice: e.target.value})}
+                        className="w-full p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-brand-500"
+                      />
+                    </div>
+                    <button 
+                      type="button" 
+                      onClick={addItem}
+                      className="self-end bg-brand-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-brand-700 transition h-[46px]"
                     >
-                      <option value="">Manual / Outro</option>
-                      {availableBatches.map(b => {
-                        const material = materials.find(m => m.code === b.materialCode);
-                        return (
-                          <option key={b.id} value={b.id}>
-                            {material?.name} - {b.weightKg}kg ({b.id})
-                          </option>
-                        );
-                      })}
-                    </select>
+                      Adicionar
+                    </button>
                   </div>
                   <div className="flex-1 space-y-1">
                     <label className="text-[10px] font-bold text-slate-400 uppercase">Descrição do Produto</label>
@@ -533,33 +599,6 @@ const OrderManager: React.FC<Props> = ({ orders, partners, batches, materials, o
                       className="w-full p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-brand-500"
                     />
                   </div>
-                  <div className="w-full md:w-32 space-y-1">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase">Qtd (Kg)</label>
-                    <input 
-                      type="number" 
-                      placeholder="0"
-                      value={newItem.quantity}
-                      onChange={e => setNewItem({...newItem, quantity: e.target.value})}
-                      className="w-full p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-brand-500"
-                    />
-                  </div>
-                  <div className="w-full md:w-40 space-y-1">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase">V. Unitário</label>
-                    <input 
-                      type="number" 
-                      placeholder="0.00"
-                      value={newItem.unitPrice}
-                      onChange={e => setNewItem({...newItem, unitPrice: e.target.value})}
-                      className="w-full p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-brand-500"
-                    />
-                  </div>
-                  <button 
-                    type="button" 
-                    onClick={addItem}
-                    className="self-end bg-brand-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-brand-700 transition"
-                  >
-                    Adicionar
-                  </button>
                 </div>
 
                 <div className="overflow-x-auto">
@@ -577,10 +616,30 @@ const OrderManager: React.FC<Props> = ({ orders, partners, batches, materials, o
                     <tbody className="divide-y divide-slate-100">
                       {formData.items.map(item => (
                         <tr key={item.id} className="text-sm">
-                          <td className="px-4 py-3 font-bold">{item.quantity}</td>
+                          <td className="px-4 py-3 font-bold">
+                            <input 
+                              type="number" 
+                              value={item.quantity} 
+                              onChange={e => updateItem(item.id, 'quantity', e.target.value)}
+                              className="w-20 p-1 border border-slate-200 rounded bg-white"
+                              disabled={item.deliveredQuantity > 0}
+                            />
+                          </td>
                           <td className="px-4 py-3 font-black text-amber-600">{item.deliveredQuantity || 0}</td>
                           <td className="px-4 py-3 uppercase">{item.description}</td>
-                          <td className="px-4 py-3 text-right">R$ {item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                          <td className="px-4 py-3 text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              <span>R$</span>
+                              <input 
+                                type="number" 
+                                step="0.01"
+                                value={item.unitPrice} 
+                                onChange={e => updateItem(item.id, 'unitPrice', e.target.value)}
+                                className="w-24 p-1 border border-slate-200 rounded bg-white text-right"
+                                disabled={item.deliveredQuantity > 0}
+                              />
+                            </div>
+                          </td>
                           <td className="px-4 py-3 text-right font-black">R$ {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                           <td className="px-4 py-3">
                             <button onClick={() => removeItem(item.id)} className="text-red-400 hover:text-red-600 transition" disabled={item.deliveredQuantity > 0}>

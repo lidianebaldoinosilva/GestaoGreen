@@ -241,12 +241,28 @@ const App: React.FC = () => {
       operationType: 'Venda de Produto (Pedido)',
       partnerId: order.customerId,
       batchId: order.orderNumber,
-      amount: order.totalAmount,
+      amount: order.totalAmount + (order.isFob ? 0 : (order.shippingCost || 0)),
       date: order.date,
       dueDate: order.date, // Pode ser ajustado conforme política de crédito
       status: 'pending',
       description: `Recebimento Pedido ${order.orderNumber}`
     });
+
+    // 1.1 Financeiro: Contas a Pagar (Frete CIF)
+    if (!order.isFob && order.shippingCost && order.shippingCost > 0) {
+      newFinEntries.push({
+        id: Math.random().toString(36).substr(2, 9),
+        type: 'payable',
+        operationType: 'Frete (Venda CIF)',
+        partnerId: 'carrier-generic', // Or a specific carrier if we had one
+        batchId: order.orderNumber,
+        amount: order.shippingCost,
+        date: order.date,
+        dueDate: order.date,
+        status: 'pending',
+        description: `Pagamento Frete Pedido ${order.orderNumber}`
+      });
+    }
 
     // 2. Estoque: Baixa automática dos itens vinculados a lotes
     order.items.forEach(item => {
