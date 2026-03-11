@@ -362,8 +362,23 @@ const OrderManager: React.FC<Props> = ({ orders, partners, batches, materials, o
               </div>
             </div>
 
-            <div className="border-2 border-slate-800 p-8 min-h-[800px] flex flex-col relative overflow-hidden print:border-none">
-              <div className="flex justify-between items-start border-b-2 border-slate-800 pb-6 mb-6">
+            <div className="border-2 border-slate-800 p-8 min-h-[800px] flex flex-col relative overflow-hidden print:border-none print:p-2 print:min-h-0 print:block">
+              <style dangerouslySetInnerHTML={{ __html: `
+                @media print {
+                  @page {
+                    margin: 5mm;
+                    size: A4;
+                  }
+                  .print-compact {
+                    padding: 4px !important;
+                    margin: 4px !important;
+                  }
+                  table tr td, table tr th {
+                    padding: 4px !important;
+                  }
+                }
+              ` }} />
+              <div className="flex justify-between items-start border-b-2 border-slate-800 pb-6 mb-6 print:pb-2 print:mb-2">
                 <div>
                   <h1 className="text-4xl font-black text-brand-950 flex items-center gap-2">
                     <Sprout className="w-8 h-8 text-brand-600" /> GreenPlastik
@@ -400,7 +415,7 @@ const OrderManager: React.FC<Props> = ({ orders, partners, batches, materials, o
                  </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-y-4 gap-x-10 mb-8 text-sm">
+              <div className="grid grid-cols-2 gap-y-4 gap-x-10 mb-8 text-sm print:mb-4 print:gap-y-1 print:gap-x-4">
                 <div className="border-b border-slate-300 pb-1">
                   <span className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Cliente:</span>
                   <p className="font-bold text-slate-800">{partners.find(p => p.id === viewOrder.customerId)?.name || 'N/A'}</p>
@@ -419,7 +434,7 @@ const OrderManager: React.FC<Props> = ({ orders, partners, batches, materials, o
                 </div>
               </div>
 
-              <table className="w-full border-collapse mb-auto">
+              <table className="w-full border-collapse mb-auto print:mb-2">
                 <thead>
                   <tr className="bg-brand-50">
                     <th className="border-2 border-slate-800 p-2 text-xs font-black uppercase w-24">Quant.</th>
@@ -437,12 +452,12 @@ const OrderManager: React.FC<Props> = ({ orders, partners, batches, materials, o
                       <td className="border-2 border-slate-800 p-3 text-right font-black">R$ {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                     </tr>
                   ))}
-                  {Array.from({ length: Math.max(0, 10 - viewOrder.items.length) }).map((_, i) => (
+                  {Array.from({ length: Math.max(0, 8 - viewOrder.items.length) }).map((_, i) => (
                     <tr key={`empty-${i}`}>
-                      <td className="border-2 border-slate-800 p-3 h-10"></td>
-                      <td className="border-2 border-slate-800 p-3 h-10"></td>
-                      <td className="border-2 border-slate-800 p-3 h-10"></td>
-                      <td className="border-2 border-slate-800 p-3 h-10"></td>
+                      <td className="border-2 border-slate-800 p-3 h-10 print:h-6 print:p-1"></td>
+                      <td className="border-2 border-slate-800 p-3 h-10 print:h-6 print:p-1"></td>
+                      <td className="border-2 border-slate-800 p-3 h-10 print:h-6 print:p-1"></td>
+                      <td className="border-2 border-slate-800 p-3 h-10 print:h-6 print:p-1"></td>
                     </tr>
                   ))}
                 </tbody>
@@ -454,7 +469,7 @@ const OrderManager: React.FC<Props> = ({ orders, partners, batches, materials, o
                 </tfoot>
               </table>
 
-              <div className="mt-10 flex justify-between items-end border-t-2 border-slate-800 pt-6">
+              <div className="mt-10 flex justify-between items-end border-t-2 border-slate-800 pt-6 print:mt-4 print:pt-2">
                 <div className="space-y-2">
                    <p className="text-[10px] italic text-slate-400 mt-4">Favor conferir a mercadoria.</p>
                 </div>
