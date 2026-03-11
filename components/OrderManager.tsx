@@ -347,7 +347,7 @@ const OrderManager: React.FC<Props> = ({ orders, partners, batches, materials, o
                   onClick={() => setViewOrder(null)} 
                   className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg font-bold transition"
                 >
-                  <ArrowLeftRight className="w-4 h-4 rotate-180" /> Voltar
+                  <ArrowLeftRight className="w-4 h-4 rotate-180" /> Sair
                 </button>
                 <h3 className="text-xl font-black text-slate-800 uppercase tracking-widest">Visualização do Pedido</h3>
               </div>
@@ -423,7 +423,6 @@ const OrderManager: React.FC<Props> = ({ orders, partners, batches, materials, o
                 <thead>
                   <tr className="bg-brand-50">
                     <th className="border-2 border-slate-800 p-2 text-xs font-black uppercase w-24">Quant.</th>
-                    <th className="border-2 border-slate-800 p-2 text-xs font-black uppercase w-24">Entregue</th>
                     <th className="border-2 border-slate-800 p-2 text-xs font-black uppercase">Produto</th>
                     <th className="border-2 border-slate-800 p-2 text-xs font-black uppercase w-32">Unitário</th>
                     <th className="border-2 border-slate-800 p-2 text-xs font-black uppercase w-32">Total</th>
@@ -433,9 +432,6 @@ const OrderManager: React.FC<Props> = ({ orders, partners, batches, materials, o
                   {viewOrder.items.map((item, idx) => (
                     <tr key={idx}>
                       <td className="border-2 border-slate-800 p-3 text-center font-bold">{item.quantity}</td>
-                      <td className={`border-2 border-slate-800 p-3 text-center font-black ${item.deliveredQuantity >= item.quantity ? 'text-emerald-600' : 'text-amber-600'}`}>
-                        {item.deliveredQuantity || 0}
-                      </td>
                       <td className="border-2 border-slate-800 p-3 font-medium uppercase">{item.description}</td>
                       <td className="border-2 border-slate-800 p-3 text-right">R$ {item.unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                       <td className="border-2 border-slate-800 p-3 text-right font-black">R$ {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
@@ -447,13 +443,12 @@ const OrderManager: React.FC<Props> = ({ orders, partners, batches, materials, o
                       <td className="border-2 border-slate-800 p-3 h-10"></td>
                       <td className="border-2 border-slate-800 p-3 h-10"></td>
                       <td className="border-2 border-slate-800 p-3 h-10"></td>
-                      <td className="border-2 border-slate-800 p-3 h-10"></td>
                     </tr>
                   ))}
                 </tbody>
                 <tfoot>
                   <tr>
-                    <td colSpan={4} className="border-2 border-slate-800 p-4 text-right font-black uppercase tracking-widest text-lg">Total do Pedido</td>
+                    <td colSpan={3} className="border-2 border-slate-800 p-4 text-right font-black uppercase tracking-widest text-lg">Total do Pedido</td>
                     <td className="border-2 border-slate-800 p-4 text-right font-black text-xl text-brand-700">R$ {viewOrder.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                   </tr>
                 </tfoot>
@@ -673,7 +668,6 @@ const OrderManager: React.FC<Props> = ({ orders, partners, batches, materials, o
                     <thead>
                       <tr className="text-[10px] uppercase font-bold text-slate-400 border-b border-slate-200">
                         <th className="px-4 py-2 text-left">Qtd</th>
-                        <th className="px-4 py-2 text-left">Entregue</th>
                         <th className="px-4 py-2 text-left">Produto</th>
                         <th className="px-4 py-2 text-right">Unitário</th>
                         <th className="px-4 py-2 text-right">Total</th>
@@ -692,7 +686,6 @@ const OrderManager: React.FC<Props> = ({ orders, partners, batches, materials, o
                               disabled={item.deliveredQuantity > 0}
                             />
                           </td>
-                          <td className="px-4 py-3 font-black text-amber-600">{item.deliveredQuantity || 0}</td>
                           <td className="px-4 py-3 uppercase">{item.description}</td>
                           <td className="px-4 py-3 text-right">
                             <div className="flex items-center justify-end gap-1">
@@ -718,7 +711,7 @@ const OrderManager: React.FC<Props> = ({ orders, partners, batches, materials, o
                     </tbody>
                     <tfoot>
                       <tr className="bg-slate-100">
-                        <td colSpan={4} className="px-4 py-4 text-right font-black uppercase text-slate-500">Total Geral</td>
+                        <td colSpan={3} className="px-4 py-4 text-right font-black uppercase text-slate-500">Total Geral</td>
                         <td className="px-4 py-4 text-right font-black text-brand-700 text-lg">R$ {formData.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
                         <td></td>
                       </tr>
